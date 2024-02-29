@@ -21,6 +21,21 @@ CLASSES = [
 ]
 
 
+def main_page(frame_holder, class_holder, html_holder, raw_frame, gesture_detected):
+    if gesture_detected == "Pointing_Up":
+        frame_holder.image(raw_frame, channels="RGB")
+        html_holder.markdown("# Main Page ❄️")
+        class_holder.header(gesture_detected)
+    elif gesture_detected == "Open_Palm":
+        frame_holder.image(raw_frame, channels="RGB")
+        html_holder.markdown("# Page 2 ❄️")
+        class_holder.header(gesture_detected)
+    elif gesture_detected == "Closed_Fist":
+        frame_holder.image(raw_frame, channels="RGB")
+        html_holder.markdown("# Page 3 ❄️")
+        class_holder.header(gesture_detected)
+
+
 def predict_frame(raw_frame):
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=raw_frame)
     recognition_result = recognizer.recognize(mp_image)
@@ -32,26 +47,25 @@ def predict_frame(raw_frame):
 
 
 def main():
-    st.title("Gesture Controlled Infographics")
     cap = cv2.VideoCapture(0)
     width = 128
     height = 128
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    frame_placeholder = st.empty()
-    class_placeholder = st.empty()
     stop_button_pressed = st.button("Stop")
+    st.title("Gesture Controlled Infographics")
+    frame_holder = st.empty()
+    html_holder = st.empty()
+    class_holder = st.empty()
+    time.sleep(1)
     while cap.isOpened() and not stop_button_pressed:
         success, raw_frame = cap.read()
-        # time.sleep(1)
-        gesture_detected = predict_frame(raw_frame)
-        st.write(gesture_detected)
         if not success:
             st.write("Video Capture Ended")
             break
         raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
-        frame_placeholder.image(raw_frame, channels="RGB")
-        class_placeholder.header(gesture_detected)
+        gesture_detected = predict_frame(raw_frame)
+        main_page(frame_holder, class_holder, html_holder, raw_frame, gesture_detected)
         if cv2.waitKey(1) & 0xFF == ord("q") or stop_button_pressed:
             break
     cap.release()
