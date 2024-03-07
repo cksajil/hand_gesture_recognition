@@ -1,0 +1,2 @@
+# Mouse
+A mouse is a pointing device that detects two-dimensional motion relative to a surface. It allows users to control the cursor and interact with graphical user interfaces on a computer. Modern mice often include additional buttons and features for enhanced functionality.
