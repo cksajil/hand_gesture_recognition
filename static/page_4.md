@@ -1,2 +1,0 @@
-# Printer
-A printer is a peripheral device that produces a physical copy of digital documents, images, or other content. Printers can create hard copies on paper, transparencies, or other materials using ink, toner, or other printing technologies.
