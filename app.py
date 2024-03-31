@@ -3,10 +3,8 @@ import time
 import streamlit as st
 import mediapipe as mp
 from os.path import join
-from utils import read_markdown_file
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
-
 
 base_options = python.BaseOptions(model_asset_path="./models/gesture_recognizer.task")
 options = vision.GestureRecognizerOptions(base_options=base_options)
@@ -22,37 +20,33 @@ CLASSES = [
     "ILoveYou",
 ]
 
+pages = [
+    "all.png",
+    "pc.jpeg",
+    "monitor.webp",
+    "keyboard.webp",
+    "mouse.jpg",
+    "harddisk.jpeg",
+]
 
-def main_page(frame_holder, class_holder, html_holder, raw_frame, gesture_detected):
-    if gesture_detected == "Pointing_Up":
-        # frame_holder.image(raw_frame, channels="RGB")
-        markdown_path = join("static", "index.md")
-        html_holder.markdown(read_markdown_file(markdown_path))
-        class_holder.write(gesture_detected)
-    elif gesture_detected == "Open_Palm":
-        # frame_holder.image(raw_frame, channels="RGB")
-        markdown_path = join("static", "page_1.md")
-        html_holder.markdown(read_markdown_file(markdown_path))
-        class_holder.write(gesture_detected)
-    elif gesture_detected == "Closed_Fist":
-        # frame_holder.image(raw_frame, channels="RGB")
-        markdown_path = join("static", "page_2.md")
-        html_holder.markdown(read_markdown_file(markdown_path))
-        class_holder.write(gesture_detected)
-    elif gesture_detected == "Thumb_Up":
-        # frame_holder.image(raw_frame, channels="RGB")
-        markdown_path = join("static", "page_3.md")
-        html_holder.markdown(read_markdown_file(markdown_path))
-        class_holder.write(gesture_detected)
-    elif gesture_detected == "Thumb_Down":
-        # frame_holder.image(raw_frame, channels="RGB")
-        markdown_path = join("static", "page_4.md")
-        html_holder.markdown(read_markdown_file(markdown_path))
-        class_holder.write(gesture_detected)
-    elif gesture_detected == "Victory":
-        # frame_holder.image(raw_frame, channels="RGB")
-        html_holder.markdown("# Page 6 ❄️")
-        class_holder.write(gesture_detected)
+
+def main_page(
+    frame_holder, class_holder, html_holder, raw_frame, gesture_detected, idx
+):
+    if gesture_detected in ["Thumb_Up", "Thumb_Down"]:
+        if gesture_detected == "Thumb_Up":
+            idx += 1
+        else:
+            idx -= 1
+    else:
+        pass
+    idx = idx % 6
+    # frame_holder.image(raw_frame, channels="RGB")
+    current_page = pages[idx]
+    html_holder.image(join("static", current_page))
+    class_holder.write(gesture_detected)
+    time.sleep(3)
+    return idx
 
 
 def predict_frame(raw_frame):
@@ -77,6 +71,7 @@ def main():
     html_holder = st.empty()
     class_holder = st.empty()
     time.sleep(2)
+    idx = 0
     while cap.isOpened() and not stop_button_pressed:
         success, raw_frame = cap.read()
         if not success:
@@ -84,7 +79,9 @@ def main():
             break
         raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
         gesture_detected = predict_frame(raw_frame)
-        main_page(frame_holder, class_holder, html_holder, raw_frame, gesture_detected)
+        idx = main_page(
+            frame_holder, class_holder, html_holder, raw_frame, gesture_detected, idx
+        )
         if cv2.waitKey(1) & 0xFF == ord("q") or stop_button_pressed:
             break
     cap.release()
