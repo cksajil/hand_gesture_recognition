@@ -10,6 +10,7 @@ base_options = python.BaseOptions(model_asset_path="./models/gesture_recognizer.
 options = vision.GestureRecognizerOptions(base_options=base_options)
 recognizer = vision.GestureRecognizer.create_from_options(options)
 NUM_PAGES = 5
+COMMAND_WAIT_TIME = 3
 CLASSES = [
     "None",
     "Closed_Fist",
@@ -25,10 +26,8 @@ pages = ["1.jpg", "2.jpg", "3.jpg", "4.jpg", "5.jpg"]
 
 
 def play_video(frame_holder, html_holder, class_holder):
-    video_html = """<video controls width="720" autoplay="true" muted="false" loop="true">
-<source 
-            src="https://github.com/cksajil/hand_gesture_recognition/raw/video/static/war.mp4" 
-            type="video/mp4" />
+    video_html = """<video width="720" controls autoplay="true" loop="true">
+<source src="https://github.com/cksajil/hand_gesture_recognition/raw/video/static/war.mp4" type="video/mp4" />
 </video>"""
     frame_holder.markdown(video_html, unsafe_allow_html=True)
     html_holder.write("")
@@ -48,13 +47,13 @@ def main_page(
     idx = idx % NUM_PAGES
     if idx == 0:
         play_video(frame_holder, html_holder, class_holder)
-        time.sleep(5)
+        time.sleep(COMMAND_WAIT_TIME)
     else:
         current_page = pages[idx]
         frame_holder.write("")
         html_holder.image(join("static", current_page))
         class_holder.write(gesture_detected)
-        time.sleep(3)
+        time.sleep(COMMAND_WAIT_TIME)
     return idx
 
 
