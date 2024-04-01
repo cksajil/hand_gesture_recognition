@@ -27,7 +27,7 @@ pages = ["1.jpg", "2.jpg", "3.jpg", "4.jpg", "5.jpg"]
 def play_video(frame_holder, html_holder, class_holder):
     video_html = """<video controls width="720" autoplay="true" muted="false" loop="true">
 <source 
-            src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm" 
+            src="https://github.com/cksajil/hand_gesture_recognition/raw/video/static/war.mp4" 
             type="video/mp4" />
 </video>"""
     frame_holder.markdown(video_html, unsafe_allow_html=True)
