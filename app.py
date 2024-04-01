@@ -9,6 +9,7 @@ from mediapipe.tasks.python import vision
 base_options = python.BaseOptions(model_asset_path="./models/gesture_recognizer.task")
 options = vision.GestureRecognizerOptions(base_options=base_options)
 recognizer = vision.GestureRecognizer.create_from_options(options)
+NUM_PAGES = 5
 CLASSES = [
     "None",
     "Closed_Fist",
@@ -20,14 +21,18 @@ CLASSES = [
     "ILoveYou",
 ]
 
-pages = [
-    "all.png",
-    "pc.jpeg",
-    "monitor.webp",
-    "keyboard.webp",
-    "mouse.jpg",
-    "harddisk.jpeg",
-]
+pages = ["1.jpg", "2.jpg", "3.jpg", "4.jpg", "5.jpg"]
+
+
+def play_video(frame_holder, html_holder, class_holder):
+    video_html = """<video controls width="720" autoplay="true" muted="false" loop="true">
+<source 
+            src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm" 
+            type="video/mp4" />
+</video>"""
+    frame_holder.markdown(video_html, unsafe_allow_html=True)
+    html_holder.write("")
+    class_holder.write("")
 
 
 def main_page(
@@ -40,12 +45,16 @@ def main_page(
             idx -= 1
     else:
         pass
-    idx = idx % 6
-    # frame_holder.image(raw_frame, channels="RGB")
-    current_page = pages[idx]
-    html_holder.image(join("static", current_page))
-    class_holder.write(gesture_detected)
-    time.sleep(3)
+    idx = idx % NUM_PAGES
+    if idx == 0:
+        play_video(frame_holder, html_holder, class_holder)
+        time.sleep(5)
+    else:
+        current_page = pages[idx]
+        frame_holder.write("")
+        html_holder.image(join("static", current_page))
+        class_holder.write(gesture_detected)
+        time.sleep(3)
     return idx
 
 
@@ -66,16 +75,14 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
     stop_button_pressed = st.button("Stop")
-    # st.title("Gesture Controlled Infographics")
     frame_holder = st.empty()
     html_holder = st.empty()
     class_holder = st.empty()
-    time.sleep(2)
+    time.sleep(3)
     idx = 0
     while cap.isOpened() and not stop_button_pressed:
         success, raw_frame = cap.read()
         if not success:
-            st.write("Video Capture Ended")
             break
         raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
         gesture_detected = predict_frame(raw_frame)
