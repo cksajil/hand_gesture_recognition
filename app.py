@@ -39,8 +39,18 @@ def load_image(file):
     return cv2.imread(file)
 
 
-def main_page(html_holder, idx):
+def play_video(frame_holder, html_holder, class_holder):
+    video_html = """<video width="720" controls autoplay="true" loop="true">
+<source src="https://github.com/cksajil/hand_gesture_recognition/raw/video/static/war.mp4" type="video/mp4" />
+</video>"""
+    frame_holder.markdown(video_html, unsafe_allow_html=True)
+    html_holder.write("")
+    class_holder.write("")
+
+
+def main_page(frame_holder, html_holder, idx):
     current_page = pages[idx]
+    frame_holder.write("")
     html_holder.image(load_image(join("static", current_page)), channels="BGR")
     return idx
 
@@ -62,7 +72,9 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
     stop_button_pressed = st.button("Stop")
+    frame_holder = st.empty()
     html_holder = st.empty()
+    class_holder = st.empty()
     idx = 0
     gesture_buffer = []
     while cap.isOpened() and not stop_button_pressed:
@@ -86,7 +98,10 @@ def main():
                 idx -= 1
                 gesture_buffer.clear()
             idx = idx % NUM_PAGES
-            idx = main_page(html_holder, idx)
+            if idx == 0:
+                play_video(frame_holder, html_holder, class_holder)
+            else:
+                idx = main_page(frame_holder, html_holder, idx)
         if stop_button_pressed:
             break
     cap.release()
