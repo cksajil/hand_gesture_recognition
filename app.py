@@ -1,19 +1,13 @@
 import cv2
-import time
-import threading
+import streamlit as st
 import mediapipe as mp
 from os.path import join
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
-from flask import Flask, send_from_directory, render_template_string
 
-model_path = join("models", "gesture_recognizer.task")
-base_options = python.BaseOptions(model_asset_path=model_path)
+base_options = python.BaseOptions(model_asset_path="./models/gesture_recognizer.task")
 options = vision.GestureRecognizerOptions(base_options=base_options)
 recognizer = vision.GestureRecognizer.create_from_options(options)
-idx = 0
-app = Flask(__name__)
-
 CLASSES = [
     "None",
     "Closed_Fist",
@@ -35,7 +29,14 @@ pages = [
 ]
 
 
-def page_selector(gesture_detected, idx):
+@st.cache_data
+def load_image(file):
+    return cv2.imread(file)
+
+
+def main_page(
+    frame_holder, class_holder, html_holder, gesture_detected, idx
+):
     if gesture_detected in ["Thumb_Up", "Thumb_Down"]:
         if gesture_detected == "Thumb_Up":
             idx += 1
@@ -44,6 +45,9 @@ def page_selector(gesture_detected, idx):
     else:
         pass
     idx = idx % 6
+    current_page = pages[idx]
+    html_holder.image(load_image(join("static", current_page)), channels="BGR")
+    class_holder.write(gesture_detected)
     return idx
 
 
@@ -57,40 +61,32 @@ def predict_frame(raw_frame):
     return gesture_detected
 
 
-def detect_gesture():
-    global idx
-    idx = 0
-    cap = cv2.VideoCapture(0)
-    width = 128
-    height = 128
+def main():
+    cap = cv2.VideoCapture(-1)
+    width = 16
+    height = 16
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    while cap.isOpened():
+    stop_button_pressed = st.button("Stop")
+    frame_holder = st.empty()
+    html_holder = st.empty()
+    class_holder = st.empty()
+    idx = 0
+    while cap.isOpened() and not stop_button_pressed:
         success, raw_frame = cap.read()
         if not success:
+            st.write("Video Capture Ended")
             break
         raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
         gesture_detected = predict_frame(raw_frame)
-        idx = page_selector(gesture_detected, idx)
-        print(idx)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
+        idx = main_page(
+            frame_holder, class_holder, html_holder, gesture_detected, idx
+        )
+        if stop_button_pressed:
             break
     cap.release()
     cv2.destroyAllWindows()
 
 
-@app.route("/")
-def index():
-    threading.Thread(target=detect_gesture).start()
-    result_value = idx
-    if result_value == 0:
-        return send_from_directory("static", "war.mp4")
-    else:
-        image_path = join("static", pages[result_value])
-        with open(join("static", "result.html"), "r") as file:
-            template = file.read()
-        return render_template_string(template, image_path=image_path)
-
-
 if __name__ == "__main__":
-    app.run(debug=True)
+    main()
