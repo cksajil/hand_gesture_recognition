@@ -8,7 +8,7 @@ from mediapipe.tasks.python import vision
 base_options = python.BaseOptions(model_asset_path="./models/gesture_recognizer.task")
 options = vision.GestureRecognizerOptions(base_options=base_options)
 recognizer = vision.GestureRecognizer.create_from_options(options)
-DELAY_COUNT = 5
+DELAY_COUNT = 10
 NUM_PAGES = 8
 SELECTED_CLASSES = ["Thumb_Up", "Thumb_Down"]
 CLASSES = [
