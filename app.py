@@ -8,7 +8,8 @@ from mediapipe.tasks.python import vision
 base_options = python.BaseOptions(model_asset_path="./models/gesture_recognizer.task")
 options = vision.GestureRecognizerOptions(base_options=base_options)
 recognizer = vision.GestureRecognizer.create_from_options(options)
-DELAY_COUNT = 10
+DELAY_COUNT = 5
+NUM_PAGES = 8
 SELECTED_CLASSES = ["Thumb_Up", "Thumb_Down"]
 CLASSES = [
     "None",
@@ -22,12 +23,14 @@ CLASSES = [
 ]
 
 pages = [
-    "all.png",
-    "pc.jpeg",
-    "monitor.webp",
-    "keyboard.webp",
-    "mouse.jpg",
-    "harddisk.jpeg",
+    "cpu.jpeg",
+    "motherboard.jpeg",
+    "smps.jpeg",
+    "fan.jpeg",
+    "network_card.jpeg",
+    "storage.jpeg",
+    "gpu.jpeg",
+    "ram.jpeg",
 ]
 
 
@@ -82,7 +85,7 @@ def main():
             elif down_count == DELAY_COUNT:
                 idx -= 1
                 gesture_buffer.clear()
-            idx = idx % 6
+            idx = idx % NUM_PAGES
             idx = main_page(html_holder, idx)
         if stop_button_pressed:
             break
