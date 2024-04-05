@@ -4,12 +4,13 @@ import mediapipe as mp
 from os.path import join
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+from utils import setup_gpio, gpio_action, gpio_clear
 
 base_options = python.BaseOptions(model_asset_path="./models/gesture_recognizer.task")
 options = vision.GestureRecognizerOptions(base_options=base_options)
 recognizer = vision.GestureRecognizer.create_from_options(options)
 DELAY_COUNT = 10
-NUM_PAGES = 8
+NUM_PAGES = 9
 SELECTED_CLASSES = ["Thumb_Up", "Thumb_Down"]
 CLASSES = [
     "None",
@@ -23,6 +24,7 @@ CLASSES = [
 ]
 
 pages = [
+    "video",
     "cpu.jpeg",
     "motherboard.jpeg",
     "smps.jpeg",
@@ -66,6 +68,7 @@ def predict_frame(raw_frame):
 
 
 def main():
+    setup_gpio()
     cap = cv2.VideoCapture(0)
     width = 16
     height = 16
@@ -100,8 +103,10 @@ def main():
             idx = idx % NUM_PAGES
             if idx == 0:
                 play_video(frame_holder, html_holder, class_holder)
+                gpio_clear()
             else:
                 idx = main_page(frame_holder, html_holder, idx)
+                gpio_action(idx)
         if stop_button_pressed:
             break
     cap.release()
