@@ -26,12 +26,12 @@ CLASSES = [
 pages = [
     "video",
     "cpu.jpeg",
-    "motherboard.jpeg",
-    "smps.jpeg",
-    "fan.jpeg",
     "network_card.jpeg",
-    "storage.jpeg",
+    "smps.jpeg",
+    "motherboard.jpeg",
     "gpu.jpeg",
+    "fan.jpeg",
+    "storage.jpeg",
     "ram.jpeg",
 ]
 
