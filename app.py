@@ -4,13 +4,15 @@ import mediapipe as mp
 from os.path import join
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+from utils import read_html_file
 from utils import setup_gpio, gpio_action, gpio_clear
+
 
 base_options = python.BaseOptions(model_asset_path="./models/gesture_recognizer.task")
 options = vision.GestureRecognizerOptions(base_options=base_options)
 recognizer = vision.GestureRecognizer.create_from_options(options)
 DELAY_COUNT = 10
-NUM_PAGES = 9
+NUM_PAGES = 8
 SELECTED_CLASSES = ["Thumb_Up", "Thumb_Down"]
 CLASSES = [
     "None",
@@ -24,36 +26,22 @@ CLASSES = [
 ]
 
 pages = [
-    "video",
-    "cpu.jpeg",
-    "network_card.jpeg",
-    "smps.jpeg",
-    "motherboard.jpeg",
-    "gpu.jpeg",
-    "fan.jpeg",
-    "storage.jpeg",
-    "ram.jpeg",
+    "cpu.html",
+    "network_card.html",
+    "smps.html",
+    "motherboard.html",
+    "gpu.html",
+    "fan.html",
+    "storage.html",
+    "ram.html",
 ]
 
 
-@st.cache_data
-def load_image(file):
-    return cv2.imread(file)
-
-
-def play_video(frame_holder, html_holder, class_holder):
-    video_html = """<video width="720" controls autoplay="true" loop="true">
-<source src="https://github.com/cksajil/hand_gesture_recognition/raw/video/static/war.mp4" type="video/mp4" />
-</video>"""
-    frame_holder.markdown(video_html, unsafe_allow_html=True)
-    html_holder.write("")
-    class_holder.write("")
-
-
-def main_page(frame_holder, html_holder, idx):
+def main_page(html_holder, idx):
     current_page = pages[idx]
-    frame_holder.write("")
-    html_holder.image(load_image(join("static", current_page)), channels="BGR")
+    page_html = read_html_file(join("static", current_page))
+    if page_html:
+        html_holder.markdown(page_html, unsafe_allow_html=True)
     return idx
 
 
@@ -75,9 +63,7 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
     stop_button_pressed = st.button("Stop")
-    frame_holder = st.empty()
     html_holder = st.empty()
-    class_holder = st.empty()
     idx = 0
     gesture_buffer = []
     while cap.isOpened() and not stop_button_pressed:
@@ -101,12 +87,8 @@ def main():
                 idx -= 1
                 gesture_buffer.clear()
             idx = idx % NUM_PAGES
-            if idx == 0:
-                play_video(frame_holder, html_holder, class_holder)
-                gpio_clear()
-            else:
-                idx = main_page(frame_holder, html_holder, idx)
-                gpio_action(idx)
+            idx = main_page(html_holder, idx)
+            gpio_action(idx)
         if stop_button_pressed:
             break
     cap.release()

@@ -1,13 +1,17 @@
 # Import Raspberry Pi GPIO library
 import RPi.GPIO as GPIO
 
-led_map = {1: 7, 2: 11, 3: 13, 4: 15, 5: 12, 6: 16, 7: 18, 8: 22}
+led_map = {0: 7, 1: 11, 2: 13, 3: 15, 4: 12, 5: 16, 6: 18, 7: 22}
 
 
-def read_markdown_file(markdown_path):
-    with open(markdown_path, "r") as file:
-        markdown_content = file.read()
-    return markdown_content
+def read_html_file(file_path):
+    try:
+        with open(file_path, "r") as file:
+            html_content = file.read()
+        return html_content
+    except FileNotFoundError:
+        print(f"File '{file_path}' not found.")
+        return None
 
 
 def setup_gpio():
