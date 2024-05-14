@@ -27,5 +27,5 @@ python -m pip install -r requirements.txt
 ### How to run
 
 ```console
- streamlit run app_led.py
+ streamlit run app.py
 ```

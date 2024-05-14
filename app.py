@@ -102,9 +102,8 @@ def main():
                     idx -= 1
                     gesture_buffer.clear()
                 idx = idx % NUM_PAGES
-            # idx = int(input("Enter page number to load:"))
-            idx = main_page(gif_holder, html_holder, idx)
-            gpio_action(idx)
+                idx = main_page(gif_holder, html_holder, idx)
+                gpio_action(idx)
             if stop_button_pressed:
                 break
     cap.release()
