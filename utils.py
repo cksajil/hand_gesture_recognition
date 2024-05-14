@@ -1,4 +1,6 @@
 # Import Raspberry Pi GPIO library
+import base64
+from os.path import join
 import RPi.GPIO as GPIO
 
 led_map = {0: 7, 1: 11, 2: 13, 3: 15, 4: 12, 5: 16, 6: 18, 7: 22}
@@ -12,6 +14,16 @@ def read_html_file(file_path):
     except FileNotFoundError:
         print(f"File '{file_path}' not found.")
         return None
+
+
+def generate_gif_content(file_name):
+    file_path = join("static", file_name)
+    gif_file = open(file_path, "rb")
+    contents = gif_file.read()
+    data_url = base64.b64encode(contents).decode("utf-8")
+    gif_file.close()
+    gif_content = f'<img src="data:image/gif;base64,{data_url}" alt="component gif">'
+    return gif_content
 
 
 def setup_gpio():
