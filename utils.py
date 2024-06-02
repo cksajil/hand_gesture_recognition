@@ -56,16 +56,15 @@ def read_html_file(file_path):
 
 
 def setup_gpio():
-    pass
-    # GPIO.setwarnings(False)  # Ignore warning for now
-    # GPIO.setmode(GPIO.BOARD)  # Use physical pin numbering
-    # for key in led_map:
-    #     GPIO.setup(led_map[key], GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setwarnings(False)  # Ignore warning for now
+    GPIO.setmode(GPIO.BOARD)  # Use physical pin numbering
+    for key in led_map:
+        GPIO.setup(led_map[key], GPIO.OUT, initial=GPIO.LOW)
 
 
 def gpio_clear():
     for key in led_map:
-        print("Pin number {} is OFF".format(led_map[key]))
+        # print("Pin number {} is OFF".format(led_map[key]))
         GPIO.output(led_map[key], GPIO.LOW)
 
 
