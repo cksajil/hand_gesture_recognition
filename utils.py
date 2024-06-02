@@ -3,8 +3,7 @@ import torch
 import base64
 import torch.nn as nn
 from os.path import join
-
-# import RPi.GPIO as GPIO
+import RPi.GPIO as GPIO
 
 led_map = {0: 7, 1: 11, 2: 13, 3: 15, 4: 12, 5: 16, 6: 18, 7: 22}
 
@@ -67,19 +66,17 @@ def setup_gpio():
 def gpio_clear():
     for key in led_map:
         print("Pin number {} is OFF".format(led_map[key]))
-        # GPIO.output(led_map[key], GPIO.LOW)
+        GPIO.output(led_map[key], GPIO.LOW)
 
 
 def gpio_action(pin):
     for key in led_map:
         if key == pin:
-            pass
             # print("Pin number {} is ON".format(led_map[key]))
-            # GPIO.output(led_map[key], GPIO.HIGH)
+            GPIO.output(led_map[key], GPIO.HIGH)
         else:
-            pass
             # print("Pin number {} is OFF".format(led_map[key]))
-            # GPIO.output(led_map[key], GPIO.LOW)
+            GPIO.output(led_map[key], GPIO.LOW)
 
 
 def load_config(config_name, CONFIG_PATH="./config"):
