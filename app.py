@@ -1,16 +1,15 @@
 import os
 import cv2
-import json
 import torch
 import numpy as np
 from PIL import Image
 import streamlit as st
 from os.path import join
 from collections import OrderedDict
-from torchvision.transforms import *
 from utils import load_config, ConvColumn
 from utils import read_html_file, generate_gif_content
-from utils import setup_gpio, gpio_action, gpio_clear
+from utils import setup_gpio, gpio_action
+from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
 
 NUM_PAGES = 8
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
@@ -57,29 +56,14 @@ def main_page(gif_holder, html_holder, idx):
     return idx
 
 
-def predict_frame(raw_frame):
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=raw_frame)
-    recognition_result = recognizer.recognize(mp_image)
-    top_gesture = recognition_result.gestures
-    gesture_detected = "None"
-    if top_gesture:
-        gesture_detected = top_gesture[0][0].category_name
-    return gesture_detected
-
-
 def accuracy(output, target, topk=(1,)):
-    """Computes the precision@k for the specified values of k"""
     maxk = max(topk)
     batch_size = target.size(0)
-
     _, pred = output.cpu().topk(maxk, 1, True, True)
     top_pred = pred[0][0]
-
     gesture_detected = CLASSES[top_pred.item()]
-
     pred = pred.t()
     correct = pred.eq(target.view(1, -1).expand_as(pred))
-
     res = []
     for k in topk:
         correct_k = correct[:k].view(-1).float().sum(0)
@@ -96,21 +80,16 @@ def get_frame_names(frames):
     frame_names = frames
     num_frames = len(frames)
 
-    # set number of necessary frames
     if nclips > -1:
         num_frames_necessary = clip_size * nclips * step_size
     else:
         num_frames_necessary = num_frames
 
-    # pick frames
     offset = 0
     if num_frames_necessary > num_frames:
-        # pad last frame if video is shorter than necessary
         frame_names += [frame_names[-1]] * (num_frames_necessary - num_frames)
     elif num_frames_necessary < num_frames:
-        # If there are more frames, then sample starting offset
         diff = num_frames - num_frames_necessary
-        # Temporal augmentation
         if not is_val:
             offset = np.random.randint(0, diff)
     frame_names = frame_names[offset : num_frames_necessary + offset : step_size]
@@ -122,15 +101,14 @@ def main():
     config = load_config("config.json")
     setup_gpio()
     cap = cv2.VideoCapture(0)
-    width = 720
-    height = 1280
+    width = 176
+    height = 100
     stop_button_pressed = st.button("Stop")
     gif_holder = st.empty()
     html_holder = st.empty()
     idx = 0
-    gesture_buffer = []
     n = 0
-    frames = np.empty((0, 100, 176, 3))
+    frames = np.empty((0, height, width, 3))
 
     transform = Compose(
         [
