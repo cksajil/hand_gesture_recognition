@@ -1,15 +1,15 @@
-import os
+from flask import Flask, render_template_string
 import cv2
+import os
 import torch
 import numpy as np
 from PIL import Image
-import streamlit as st
 from os.path import join
 from collections import OrderedDict
-from utils import load_config, ConvColumn
-from utils import read_html_file, generate_gif_content
-from utils import setup_gpio, gpio_action
+from threading import Thread, Lock
 from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
+from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
+from flask_socketio import SocketIO, emit
 
 NUM_PAGES = 8
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
@@ -34,26 +34,10 @@ pages = [
     "ram.html",
 ]
 
-gifs = [
-    "cpu.gif",
-    "network_card.gif",
-    "smps.gif",
-    "motherboard.gif",
-    "gpu.gif",
-    "fan.gif",
-    "storage.gif",
-    "ram.gif",
-]
-
-
-def main_page(gif_holder, html_holder, idx):
-    gif_content = generate_gif_content(gifs[idx])
-    gif_holder.markdown(gif_content, unsafe_allow_html=True)
-    current_page = pages[idx]
-    page_html = read_html_file(join("static", current_page))
-    if page_html:
-        html_holder.markdown(page_html, unsafe_allow_html=True)
-    return idx
+app = Flask(__name__)
+socketio = SocketIO(app)
+current_page = {"page": pages[0]}
+page_lock = Lock()
 
 
 def accuracy(output, target, topk=(1,)):
@@ -96,53 +80,43 @@ def get_frame_names(frames):
     return frame_names
 
 
-def main():
-    device = torch.device("cpu")
-    config = load_config("config.json")
-    setup_gpio()
-    cap = cv2.VideoCapture(0)
-    width = 176
-    height = 100
-    stop_button_pressed = st.button("Stop")
-    gif_holder = st.empty()
-    html_holder = st.empty()
-    idx = 0
-    n = 0
-    frames = np.empty((0, height, width, 3))
-
-    transform = Compose(
-        [
-            CenterCrop(84),
-            ToTensor(),
-            Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    )
-
+def load_model(config_path):
+    config = load_config(config_path)
     model = ConvColumn(8)
-
     if os.path.isfile(config["checkpoint"]):
-        print("loading checkpoint")
         checkpoint = torch.load(config["checkpoint"], map_location="cpu")
         new_state_dict = OrderedDict()
 
         for k, v in checkpoint.items():
             if k == "state_dict":
-                del checkpoint["state_dict"]
                 for j, val in v.items():
                     name = j[7:]
                     new_state_dict[name] = val
-                checkpoint["state_dict"] = new_state_dict
+                model.load_state_dict(new_state_dict)
                 break
-        model.load_state_dict(checkpoint["state_dict"])
-        print("loaded checkpoint")
+        print("Loaded checkpoint")
     else:
-        print("no checkpoint found at '{}'".format(config["checkpoint"]))
+        print("No checkpoint found at '{}'".format(config["checkpoint"]))
+    return model
 
-    while not stop_button_pressed:
-        while cap.isOpened() and not stop_button_pressed:
+
+def process_video_stream(model, device, transform):
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("Error: Could not open webcam.")
+        return
+
+    width = 176
+    height = 100
+    idx = 0
+    n = 0
+    frames = np.empty((0, height, width, 3))
+
+    try:
+        while True:
             success, raw_frame = cap.read()
             if not success:
-                st.write("Video Capture Ended")
+                print("Video Capture Ended")
                 break
             raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
             raw_frame = cv2.resize(raw_frame, (176, 100))
@@ -159,30 +133,67 @@ def main():
                 data = torch.cat(imgs)
                 data = data.permute(1, 0, 2, 3)
                 data = data[None, :, :, :, :]
-                target = [2]
-                target = torch.tensor(target)
+                target = torch.tensor([2])
                 data = data.to(device)
 
                 model.eval()
                 output = model(data)
 
                 gesture_label_int, gesture_detected = accuracy(
-                    output.detach(), target.detach().cpu(), topk=(1, 5)
+                    output.detach(), target.detach().cpu(), topk=(1,)
                 )
                 n = 0
-                frames = frames = np.empty((0, 100, 176, 3))
+                frames = np.empty((0, 100, 176, 3))
                 if gesture_label_int == 2:
                     idx += 1
                 elif gesture_label_int == 1:
                     idx -= 1
                 idx = idx % NUM_PAGES
-                idx = main_page(gif_holder, html_holder, idx)
+
+                page = pages[idx]
+                print(page)
+                with page_lock:
+                    current_page["page"] = page
+
                 gpio_action(idx)
-            if stop_button_pressed:
+
+                # Emit the page change event to all connected clients
+                socketio.emit("page_change", {"page": page})
+
+            if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
-    cap.release()
-    cv2.destroyAllWindows()
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+
+
+@app.route("/")
+def index():
+    with page_lock:
+        page = current_page["page"]
+    page_html = read_html_file(join("static", page))
+    return render_template_string(page_html)
+
+
+@socketio.on("connect")
+def handle_connect():
+    with page_lock:
+        page = current_page["page"]
+    emit("page_change", {"page": page})
 
 
 if __name__ == "__main__":
-    main()
+    setup_gpio()
+    model = load_model("config.json")
+    device = torch.device("cpu")
+    transform = Compose(
+        [
+            CenterCrop(84),
+            ToTensor(),
+            Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+    video_thread = Thread(target=process_video_stream, args=(model, device, transform))
+    video_thread.daemon = True
+    video_thread.start()
+    socketio.run(app, debug=True)

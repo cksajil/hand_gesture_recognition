@@ -3,9 +3,11 @@ import torch
 import base64
 import torch.nn as nn
 from os.path import join
+
 # import RPi.GPIO as GPIO
 
 led_map = {0: 7, 1: 11, 2: 13, 3: 15, 4: 12, 5: 16, 6: 18, 7: 22}
+
 
 class ConvColumn(nn.Module):
 
@@ -54,16 +56,6 @@ def read_html_file(file_path):
         return None
 
 
-def generate_gif_content(file_name):
-    file_path = join("static", file_name)
-    gif_file = open(file_path, "rb")
-    contents = gif_file.read()
-    data_url = base64.b64encode(contents).decode("utf-8")
-    gif_file.close()
-    gif_content = f'<img src="data:image/gif;base64,{data_url}" alt="component gif">'
-    return gif_content
-
-
 def setup_gpio():
     pass
     # GPIO.setwarnings(False)  # Ignore warning for now
@@ -81,14 +73,16 @@ def gpio_clear():
 def gpio_action(pin):
     for key in led_map:
         if key == pin:
-            print("Pin number {} is ON".format(led_map[key]))
+            pass
+            # print("Pin number {} is ON".format(led_map[key]))
             # GPIO.output(led_map[key], GPIO.HIGH)
         else:
-            print("Pin number {} is OFF".format(led_map[key]))
+            pass
+            # print("Pin number {} is OFF".format(led_map[key]))
             # GPIO.output(led_map[key], GPIO.LOW)
 
 
-def load_config(config_name, CONFIG_PATH="./config"):        
+def load_config(config_name, CONFIG_PATH="./config"):
     with open(join(CONFIG_PATH, config_name)) as file:
         config = json.load(file)
     return config
