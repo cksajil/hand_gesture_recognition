@@ -1,6 +1,6 @@
 {
     "model_name": "jester_conv_example",
-    "checkpoint": "/Users/sajil/Developer/Hand-Gesture-Recognition/Final Codes/model_best.pth.tar",
+    "checkpoint": "./models/model_best.pth.tar",
     "train_data_folder": "../20bn-jester-v1/",
     "val_data_folder": "../20bn-jester-v1/",
     "train_data_csv": "../jester-v1-train_truncated.csv",
