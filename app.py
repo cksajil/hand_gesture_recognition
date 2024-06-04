@@ -13,7 +13,7 @@ from flask import Flask, render_template_string
 from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
 from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
 
-
+DELAY_COUNT = 10
 NUM_PAGES = 9
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
 CLASSES = {
@@ -122,8 +122,10 @@ def process_video_stream(model, device, transform):
     height = 100
     idx = 0
     n = 0
+    gesture_buffer = []
     frames = np.empty((0, height, width, 3))
-
+    gesture_label_int = None
+    start_time = time.time()
     try:
         while True:
             success, raw_frame = cap.read()
@@ -154,15 +156,29 @@ def process_video_stream(model, device, transform):
                 gesture_label_int, gesture_detected = accuracy(
                     output.detach(), target.detach().cpu(), topk=(1,)
                 )
+                gesture_buffer.append(gesture_label_int)
+                gesture_buffer = gesture_buffer[-30:]
+                no_action_count = gesture_buffer.count(0)
+                print("no action count:", no_action_count)
                 n = 0
                 frames = np.empty((0, 100, 176, 3))
+                if no_action_count>DELAY_COUNT:
+                    check_time = time.time()
+                    time_delta = check_time - start_time
+                    gesture_buffer.clear()
+                    print("no action seconds elapsed:", time_delta)
+                    if time_delta > 20:
+                        print("Elapsed 20 seconds of inactivity")
+                        idx = 0
                 if gesture_label_int == 1:
+                    start_time = time.time()
                     idx += 1
                 elif gesture_label_int == 2:
+                    start_time = time.time()
                     idx -= 1
+                
                 idx = idx % NUM_PAGES
                 page = pages[idx]
-                print(idx, page)
                 current_page["page"] = page
 
                 gpio_action(idx)

@@ -70,13 +70,14 @@ def gpio_clear():
 
 
 def gpio_action(pin):
-    for key in led_map:
-        if key == pin:
-            print("Pin number {} is ON".format(led_map[key]))
-            # GPIO.output(led_map[key], GPIO.HIGH)
-        else:
-            print("Pin number {} is OFF".format(led_map[key]))
-            # GPIO.output(led_map[key], GPIO.LOW)
+    pass
+    # for key in led_map:
+    #     if key == pin:
+    #         print("Pin number {} is ON".format(led_map[key]))
+    #         # GPIO.output(led_map[key], GPIO.HIGH)
+    #     else:
+    #         print("Pin number {} is OFF".format(led_map[key]))
+    #         # GPIO.output(led_map[key], GPIO.LOW)
 
 
 def load_config(config_name, CONFIG_PATH="./config"):
