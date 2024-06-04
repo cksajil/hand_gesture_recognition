@@ -5,7 +5,7 @@ import torch.nn as nn
 from os.path import join
 # import RPi.GPIO as GPIO
 
-led_map = {0: 7, 1: 11, 2: 13, 3: 15, 4: 12, 5: 16, 6: 18, 7: 22}
+led_map = {1: 7, 2: 11, 3: 13, 4: 15, 5: 12, 6: 16, 7: 18, 8: 22}
 
 
 class ConvColumn(nn.Module):

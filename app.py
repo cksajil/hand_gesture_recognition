@@ -1,17 +1,20 @@
-from flask import Flask, render_template_string
-import cv2
 import os
+import cv2
+import time
 import torch
+import logging
 import numpy as np
 from PIL import Image
 from os.path import join
-from collections import OrderedDict
 from threading import Thread
+from collections import OrderedDict
+from flask_socketio import SocketIO, emit
+from flask import Flask, render_template_string
 from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
 from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
-from flask_socketio import SocketIO, emit
 
-NUM_PAGES = 8
+
+NUM_PAGES = 9
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
 CLASSES = {
     0: "No Gesture",
@@ -24,6 +27,7 @@ CLASSES = {
     7: "Pull Two Fingers In",
 }
 pages = [
+    "home.html",
     "cpu.html",
     "network_card.html",
     "smps.html",
@@ -35,6 +39,8 @@ pages = [
 ]
 
 app = Flask(__name__)
+log = logging.getLogger("werkzeug")
+log.disabled = True
 socketio = SocketIO(app)
 current_page = {"page": pages[0]}
 
