@@ -1,6 +1,9 @@
 # Hand Gesture Recognition
 Hand gesture control of visual information system
 
+
+<img src="https://raw.githubusercontent.com/cksajil/hand_gesture_recognition/overlay/static/action.gif" alt="drawing" width="300"/>
+
 ### Setting up virtual environment
 
 *Installing Virtual Environment*
@@ -27,5 +30,5 @@ python -m pip install -r requirements.txt
 ### How to run
 
 ```console
- streamlit run app.py
+python app.py
 ```
