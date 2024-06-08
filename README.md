@@ -2,7 +2,7 @@
 Hand gesture control of visual information system
 
 
-<img src="https://raw.githubusercontent.com/cksajil/hand_gesture_recognition/overlay/static/demo.gif" alt="drawing" width="400"/>
+<img src="https://raw.githubusercontent.com/cksajil/hand_gesture_recognition/overlay/static/demo.gif" alt="drawing" width="600"/>
 
 ### Setting up virtual environment
 
