@@ -162,7 +162,7 @@ def process_video_stream(model, device, transform):
                 print("no action count:", no_action_count)
                 n = 0
                 frames = np.empty((0, 100, 176, 3))
-                if no_action_count>DELAY_COUNT:
+                if no_action_count > DELAY_COUNT:
                     check_time = time.time()
                     time_delta = check_time - start_time
                     gesture_buffer.clear()
@@ -176,7 +176,7 @@ def process_video_stream(model, device, transform):
                 elif gesture_label_int == 2:
                     start_time = time.time()
                     idx -= 1
-                
+
                 idx = idx % NUM_PAGES
                 page = pages[idx]
                 current_page["page"] = page
