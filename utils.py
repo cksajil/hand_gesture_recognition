@@ -3,6 +3,7 @@ import torch
 import base64
 import torch.nn as nn
 from os.path import join
+
 # import RPi.GPIO as GPIO
 
 led_map = {1: 7, 2: 11, 3: 13, 4: 15, 5: 12, 6: 16, 7: 18, 8: 22}
@@ -56,6 +57,7 @@ def read_html_file(file_path):
 
 
 def setup_gpio():
+    """Function to set mode for GPIO pins"""
     pass
     # GPIO.setwarnings(False)  # Ignore warning for now
     # GPIO.setmode(GPIO.BOARD)  # Use physical pin numbering
