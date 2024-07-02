@@ -3,13 +3,14 @@ import cv2
 import time
 import torch
 import logging
+import socket
 import numpy as np
 from PIL import Image
 from os.path import join
 from threading import Thread
 from collections import OrderedDict
 from flask_socketio import SocketIO, emit
-from flask import Flask, render_template_string
+from flask import Flask, render_template_string, Response
 from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
 from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
 
@@ -44,7 +45,6 @@ log.disabled = True
 socketio = SocketIO(app)
 current_page = {"page": pages[0]}
 
-
 def accuracy(output, target, topk=(1,)):
     maxk = max(topk)
     batch_size = target.size(0)
@@ -59,7 +59,6 @@ def accuracy(output, target, topk=(1,)):
         res.append(correct_k.mul_(100.0 / batch_size))
     gesture_label_int = top_pred.item()
     return gesture_label_int, gesture_detected
-
 
 def get_frame_names(frames):
     nclips = 1
@@ -81,9 +80,8 @@ def get_frame_names(frames):
         diff = num_frames - num_frames_necessary
         if not is_val:
             offset = np.random.randint(0, diff)
-    frame_names = frame_names[offset : num_frames_necessary + offset : step_size]
+    frame_names = frame_names[offset:num_frames_necessary + offset:step_size]
     return frame_names
-
 
 def load_model(config_path):
     config = load_config(config_path)
@@ -104,13 +102,11 @@ def load_model(config_path):
         print("No checkpoint found at '{}'".format(config["checkpoint"]))
     return model
 
-
 @app.route("/page_content")
 def page_content():
     page = current_page["page"]
     page_html = read_html_file(join("static", page))
     return render_template_string(page_html)
-
 
 def process_video_stream(model, device, transform):
     cap = cv2.VideoCapture(0)
@@ -192,8 +188,7 @@ def process_video_stream(model, device, transform):
         cap.release()
         cv2.destroyAllWindows()
 
-
-@app.route("/")
+@app.route('/')
 def index():
     page = current_page["page"]
     page_html = read_html_file(join("static", page))
@@ -218,12 +213,28 @@ def index():
     """
     )
 
+@app.route('/video_feed')
+def video_feed():
+    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+def gen_frames():
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        raise RuntimeError("Could not start video capture.")
+    while True:
+        success, frame = cap.read()
+        if not success:
+            break
+        ret, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+    cap.release()
 
 @socketio.on("connect")
 def handle_connect():
     page = current_page["page"]
     emit("page_change", {"page": page})
-
 
 if __name__ == "__main__":
     setup_gpio()
@@ -239,4 +250,10 @@ if __name__ == "__main__":
     video_thread = Thread(target=process_video_stream, args=(model, device, transform))
     video_thread.daemon = True
     video_thread.start()
-    socketio.run(app, debug=True)
+
+    # Print the IP address
+    hostname = socket.gethostname()
+    ip_address = socket.gethostbyname(hostname)
+    print(f"Server is running at http://{ip_address}:5001")
+
+    socketio.run(app, host="0.0.0.0", port=5001, debug=True)
