@@ -8,11 +8,11 @@ Hand gesture control of visual information system
 
 *Installing Virtual Environment*
 ```console
-python -m pip install --user virtualenv
+python3 -m pip install --user virtualenv
 ```
 *Creating New Virtual Environment*
 ```console
-python -m venv venv
+python3 -m virtualenv venv
 ```
 *Activating Virtual Environment*
 ```console
@@ -20,15 +20,15 @@ source venv/bin/activate
 ```
 *Upgrade PIP*
 ```console
-python -m pip install --upgrade pip
+python3 -m pip install --upgrade pip
 ```
 *Installing Packages*
 ```console
-python -m pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 ```
 
 ### How to run
 
 ```console
-python app.py
+python3 app.py
 ```
