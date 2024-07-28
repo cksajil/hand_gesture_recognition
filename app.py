@@ -146,12 +146,14 @@ def process_video_stream(model, device, transform):
             data = data.to(device)
 
             model.eval()
-            quantized_model = torch.quantization.quantize_dynamic(
-                model, {nn.Linear}, dtype=torch.qint8
-            )
+            # quantized_model = torch.quantization.quantize_dynamic(
+            #     model, {nn.Linear}, dtype=torch.qint8
+            # )
+            scripted_model = torch.jit.script(model)
             print("predicting...")
             # output = model(data)
-            output = quantized_model(data)
+            # output = quantized_model(data)
+            output = scripted_model(data)
 
             gesture_label_int, gesture_detected = accuracy(
                 output.detach(), target.detach().cpu(), topk=(1,)
