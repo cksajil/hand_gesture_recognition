@@ -220,9 +220,6 @@ if __name__ == "__main__":
     model.eval()
     model = torch.quantization.quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
     # model = torch.jit.script(model)
-    dummy_input = torch.randn([1, 3, 18, 84, 84])
-    torch.onnx.export(model, dummy_input, "models/model.onnx")
-    ort_session = ort.InferenceSession("models/model.onnx")
 
     device = torch.device("cpu")
     transform = Compose(
