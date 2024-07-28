@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import numpy as np
 from PIL import Image
@@ -93,8 +94,8 @@ def capture_image():
     # Define the image filename
     image_filename = "temp.jpg"
 
-    # Capture the image using fswebcam
-    subprocess.run(["fswebcam", image_filename])
+    with open(os.devnull, "w") as devnull:
+        subprocess.run(["fswebcam", image_filename], stdout=devnull, stderr=devnull)
 
     # Open the image using PIL and convert to a NumPy array
     with Image.open(image_filename) as img:
