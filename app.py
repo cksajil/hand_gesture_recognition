@@ -16,7 +16,7 @@ from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
 from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
 from utils import capture_image
 
-DELAY_COUNT = 10
+DELAY_COUNT = 5
 NUM_PAGES = 9
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
 CLASSES = {
