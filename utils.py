@@ -95,7 +95,19 @@ def capture_image():
     image_filename = "temp.jpg"
 
     with open(os.devnull, "w") as devnull:
-        subprocess.run(["fswebcam", image_filename], stdout=devnull, stderr=devnull)
+        subprocess.run(
+            [
+                "fswebcam",
+                "--no-banner",
+                "-r",
+                "640x480",
+                "--jpeg",
+                "50",
+                image_filename,
+            ],
+            stdout=devnull,
+            stderr=devnull,
+        )
 
     # Open the image using PIL and convert to a NumPy array
     with Image.open(image_filename) as img:
