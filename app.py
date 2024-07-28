@@ -6,6 +6,7 @@ import logging
 import socket
 import numpy as np
 from PIL import Image
+import torch.nn as nn
 from os.path import join
 from threading import Thread
 from collections import OrderedDict
@@ -145,8 +146,12 @@ def process_video_stream(model, device, transform):
             data = data.to(device)
 
             model.eval()
+            quantized_model = torch.quantization.quantize_dynamic(
+                model, {nn.Linear}, dtype=torch.qint8
+            )
             print("predicting...")
-            output = model(data)
+            # output = model(data)
+            output = quantized_model(data)
 
             gesture_label_int, gesture_detected = accuracy(
                 output.detach(), target.detach().cpu(), topk=(1,)
