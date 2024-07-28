@@ -114,7 +114,6 @@ def page_content():
 
 
 def process_video_stream(model, device, transform):
-
     width = 176
     height = 100
     idx = 0
