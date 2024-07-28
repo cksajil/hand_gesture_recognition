@@ -145,6 +145,7 @@ def process_video_stream(model, device, transform):
             data = data.to(device)
 
             model.eval()
+            print("predicting...")
             output = model(data)
 
             gesture_label_int, gesture_detected = accuracy(
