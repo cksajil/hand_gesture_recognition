@@ -5,7 +5,6 @@ import torch
 import logging
 import socket
 import numpy as np
-import onnxruntime as ort
 from PIL import Image
 import torch.nn as nn
 from os.path import join
