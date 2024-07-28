@@ -3,6 +3,7 @@ import cv2
 import time
 import torch
 import logging
+import socket
 import numpy as np
 from PIL import Image
 from os.path import join
