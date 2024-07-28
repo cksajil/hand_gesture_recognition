@@ -152,7 +152,7 @@ def process_video_stream(model, device, transform):
             )
             gesture_buffer.append(gesture_label_int)
             print(gesture_buffer)
-            gesture_buffer = gesture_buffer[-30:]
+            gesture_buffer = gesture_buffer[-10:]
             no_action_count = gesture_buffer.count(0)
             # print("no action count:", no_action_count)
             n = 0
