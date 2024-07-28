@@ -100,7 +100,7 @@ def capture_image():
                 "fswebcam",
                 "--no-banner",
                 "-r",
-                "640x480",
+                "176x100",
                 "--jpeg",
                 "50",
                 image_filename,
