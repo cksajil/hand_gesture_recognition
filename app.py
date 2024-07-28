@@ -226,4 +226,10 @@ if __name__ == "__main__":
     video_thread = Thread(target=process_video_stream, args=(model, device, transform))
     video_thread.daemon = True
     video_thread.start()
-    socketio.run(app, debug=True)
+
+    # Print the IP address
+    hostname = socket.gethostname()
+    ip_address = socket.gethostbyname(hostname)
+    print(f"Server is running at http://{ip_address}:5001")
+
+    socketio.run(app, host="0.0.0.0", port=5001, debug=True)
