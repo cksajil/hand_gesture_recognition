@@ -116,7 +116,7 @@ def page_content():
     return render_template_string(page_html)
 
 
-def process_video_stream(ort_session, device, transform):
+def process_video_stream(model, device, transform):
     width = 176
     height = 100
     idx = 0
@@ -143,16 +143,14 @@ def process_video_stream(ort_session, device, transform):
             data = torch.cat(imgs)
             data = data.permute(1, 0, 2, 3)
             data = data[None, :, :, :, :]
-            # target = torch.tensor([2])
+            target = torch.tensor([2])
             data = data.to(device)
 
             print("predicting...")
-            outputs = ort_session.run(None, {"input": data})
-            print(outputs)
-            # output = model(data)
-            # gesture_label_int, gesture_detected = accuracy(
-            #     output.detach(), target.detach().cpu(), topk=(1,)
-            # )
+            output = model(data)
+            gesture_label_int, gesture_detected = accuracy(
+                output.detach(), target.detach().cpu(), topk=(1,)
+            )
             gesture_buffer.append(gesture_label_int)
             print(gesture_buffer)
             gesture_buffer = gesture_buffer[-30:]
@@ -221,7 +219,7 @@ if __name__ == "__main__":
     setup_gpio()
     model = load_model("config.json")
     model.eval()
-    # model = torch.quantization.quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
+    model = torch.quantization.quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
     # model = torch.jit.script(model)
     dummy_input = torch.randn([1, 3, 18, 84, 84])
     torch.onnx.export(model, dummy_input, "models/model.onnx")
@@ -235,9 +233,7 @@ if __name__ == "__main__":
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
-    video_thread = Thread(
-        target=process_video_stream, args=(ort_session, device, transform)
-    )
+    video_thread = Thread(target=process_video_stream, args=(model, device, transform))
     video_thread.daemon = True
     video_thread.start()
 
