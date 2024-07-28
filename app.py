@@ -12,6 +12,7 @@ from flask_socketio import SocketIO, emit
 from flask import Flask, render_template_string
 from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
 from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
+from utils import capture_image
 
 DELAY_COUNT = 10
 NUM_PAGES = 9
@@ -113,10 +114,6 @@ def page_content():
 
 
 def process_video_stream(model, device, transform):
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("Error: Could not open webcam.")
-        return
 
     width = 176
     height = 100
@@ -128,10 +125,7 @@ def process_video_stream(model, device, transform):
     start_time = time.time()
     try:
         while True:
-            success, raw_frame = cap.read()
-            if not success:
-                print("Video Capture Ended")
-                break
+            raw_frame = capture_image()
             raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
             raw_frame = cv2.resize(raw_frame, (176, 100))
             frames = np.append(frames, [raw_frame], axis=0)

@@ -1,6 +1,7 @@
 import json
-import torch
-import base64
+import subprocess
+import numpy as np
+from PIL import Image
 import torch.nn as nn
 from os.path import join
 
@@ -86,3 +87,17 @@ def load_config(config_name, CONFIG_PATH="./config"):
     with open(join(CONFIG_PATH, config_name)) as file:
         config = json.load(file)
     return config
+
+
+def capture_image():
+    # Define the image filename
+    image_filename = "temp.jpg"
+
+    # Capture the image using fswebcam
+    subprocess.run(["fswebcam", image_filename])
+
+    # Open the image using PIL and convert to a NumPy array
+    with Image.open(image_filename) as img:
+        image_array = np.array(img)
+
+    return image_array
