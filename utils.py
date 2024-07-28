@@ -100,5 +100,5 @@ def capture_image():
     # Open the image using PIL and convert to a NumPy array
     with Image.open(image_filename) as img:
         image_array = np.array(img)
-
+    print("image captured")
     return image_array
