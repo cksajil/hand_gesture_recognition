@@ -123,68 +123,62 @@ def process_video_stream(model, device, transform):
     frames = np.empty((0, height, width, 3))
     gesture_label_int = None
     start_time = time.time()
-    try:
-        while True:
-            raw_frame = capture_image()
-            raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
-            raw_frame = cv2.resize(raw_frame, (176, 100))
-            frames = np.append(frames, [raw_frame], axis=0)
-            n += 1
-            if n == 37:
-                imgs = []
-                frames = get_frame_names(frames)
-                for frame in frames:
-                    frame = Image.fromarray((frame * 255).astype(np.uint8))
-                    frame = transform(frame)
-                    imgs.append(torch.unsqueeze(frame, 0))
 
-                data = torch.cat(imgs)
-                data = data.permute(1, 0, 2, 3)
-                data = data[None, :, :, :, :]
-                target = torch.tensor([2])
-                data = data.to(device)
+    while True:
+        raw_frame = capture_image()
+        raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
+        raw_frame = cv2.resize(raw_frame, (176, 100))
+        frames = np.append(frames, [raw_frame], axis=0)
+        n += 1
+        if n == 37:
+            imgs = []
+            frames = get_frame_names(frames)
+            for frame in frames:
+                frame = Image.fromarray((frame * 255).astype(np.uint8))
+                frame = transform(frame)
+                imgs.append(torch.unsqueeze(frame, 0))
 
-                model.eval()
-                output = model(data)
+            data = torch.cat(imgs)
+            data = data.permute(1, 0, 2, 3)
+            data = data[None, :, :, :, :]
+            target = torch.tensor([2])
+            data = data.to(device)
 
-                gesture_label_int, gesture_detected = accuracy(
-                    output.detach(), target.detach().cpu(), topk=(1,)
-                )
-                gesture_buffer.append(gesture_label_int)
-                gesture_buffer = gesture_buffer[-30:]
-                no_action_count = gesture_buffer.count(0)
-                print("no action count:", no_action_count)
-                n = 0
-                frames = np.empty((0, 100, 176, 3))
-                if no_action_count > DELAY_COUNT:
-                    check_time = time.time()
-                    time_delta = check_time - start_time
-                    gesture_buffer.clear()
-                    print("no action seconds elapsed:", time_delta)
-                    if time_delta > 20:
-                        print("Elapsed 20 seconds of inactivity")
-                        idx = 0
-                if gesture_label_int == 1:
-                    start_time = time.time()
-                    idx += 1
-                elif gesture_label_int == 2:
-                    start_time = time.time()
-                    idx -= 1
+            model.eval()
+            output = model(data)
 
-                idx = idx % NUM_PAGES
-                page = pages[idx]
-                current_page["page"] = page
+            gesture_label_int, gesture_detected = accuracy(
+                output.detach(), target.detach().cpu(), topk=(1,)
+            )
+            gesture_buffer.append(gesture_label_int)
+            gesture_buffer = gesture_buffer[-30:]
+            no_action_count = gesture_buffer.count(0)
+            print("no action count:", no_action_count)
+            n = 0
+            frames = np.empty((0, 100, 176, 3))
+            if no_action_count > DELAY_COUNT:
+                check_time = time.time()
+                time_delta = check_time - start_time
+                gesture_buffer.clear()
+                print("no action seconds elapsed:", time_delta)
+                if time_delta > 20:
+                    print("Elapsed 20 seconds of inactivity")
+                    idx = 0
+            if gesture_label_int == 1:
+                start_time = time.time()
+                idx += 1
+            elif gesture_label_int == 2:
+                start_time = time.time()
+                idx -= 1
 
-                gpio_action(idx)
+            idx = idx % NUM_PAGES
+            page = pages[idx]
+            current_page["page"] = page
 
-                # Emit the page change event to all connected clients
-                socketio.emit("page_change", {"page": page})
+            gpio_action(idx)
 
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
-    finally:
-        cap.release()
-        cv2.destroyAllWindows()
+            # Emit the page change event to all connected clients
+            socketio.emit("page_change", {"page": page})
 
 
 @app.route("/")
