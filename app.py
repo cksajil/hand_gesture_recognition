@@ -16,7 +16,6 @@ from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
 from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
 from utils import capture_image
 
-DELAY_COUNT = 5
 NUM_PAGES = 9
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
 CLASSES = {
@@ -120,7 +119,6 @@ def process_video_stream(model, device, transform):
     height = 100
     idx = 0
     n = 0
-    gesture_buffer = []
     frames = np.empty((0, height, width, 3))
     gesture_label_int = None
     start_time = time.time()
@@ -131,7 +129,7 @@ def process_video_stream(model, device, transform):
         raw_frame = cv2.resize(raw_frame, (176, 100))
         frames = np.append(frames, [raw_frame], axis=0)
         n += 1
-        if n == 37:
+        if n % 37 == 0:
             imgs = []
             frames = get_frame_names(frames)
             for frame in frames:
@@ -145,40 +143,33 @@ def process_video_stream(model, device, transform):
             target = torch.tensor([2])
             data = data.to(device)
 
-            print("predicting...")
             output = model(data)
             gesture_label_int, gesture_detected = accuracy(
                 output.detach(), target.detach().cpu(), topk=(1,)
             )
-            gesture_buffer.append(gesture_label_int)
-            print(gesture_buffer)
-            gesture_buffer = gesture_buffer[-10:]
-            no_action_count = gesture_buffer.count(0)
-            # print("no action count:", no_action_count)
             n = 0
             frames = np.empty((0, 100, 176, 3))
-            if no_action_count > DELAY_COUNT:
+
+            if gesture_label_int == 1:
+                idx -= 1
+                start_time = time.time()
+            elif gesture_label_int == 2:
+                idx += 1
+                start_time = time.time()
+            else:
                 check_time = time.time()
                 time_delta = check_time - start_time
-                gesture_buffer.clear()
-                print("no action seconds elapsed:", time_delta)
-                if time_delta > 20:
+                time_index = int(time_delta) % 20
+                if time_index > 18:
                     print("Elapsed 20 seconds of inactivity")
                     idx = 0
-            if gesture_label_int == 1:
-                start_time = time.time()
-                idx += 1
-            elif gesture_label_int == 2:
-                start_time = time.time()
-                idx -= 1
+                    start_time = time.time()
 
             idx = idx % NUM_PAGES
             page = pages[idx]
             current_page["page"] = page
 
             gpio_action(idx)
-
-            # Emit the page change event to all connected clients
             socketio.emit("page_change", {"page": page})
 
 
