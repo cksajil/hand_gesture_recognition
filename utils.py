@@ -10,9 +10,6 @@ from os.path import join
 import serial.tools.list_ports
 
 
-led_map = {1: 7, 2: 11, 3: 13, 4: 15, 5: 12, 6: 16, 7: 18, 8: 22}
-
-
 class ConvColumn(nn.Module):
 
     def __init__(self, num_classes):
