@@ -6,15 +6,17 @@ import logging
 import socket
 import numpy as np
 from PIL import Image
+import torch.nn as nn
 from os.path import join
 from threading import Thread
 from collections import OrderedDict
 from flask_socketio import SocketIO, emit
-from flask import Flask, render_template_string, Response
+from flask import Flask, render_template_string
 from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
-from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
+from utils import load_config, ConvColumn, read_html_file, find_arduino_port
+from utils import capture_image, communicate_with_arduino
 
-DELAY_COUNT = 10
+DELAY_COUNT = 5
 NUM_PAGES = 9
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
 CLASSES = {
@@ -45,6 +47,7 @@ log.disabled = True
 socketio = SocketIO(app)
 current_page = {"page": pages[0]}
 
+
 def accuracy(output, target, topk=(1,)):
     maxk = max(topk)
     batch_size = target.size(0)
@@ -59,6 +62,7 @@ def accuracy(output, target, topk=(1,)):
         res.append(correct_k.mul_(100.0 / batch_size))
     gesture_label_int = top_pred.item()
     return gesture_label_int, gesture_detected
+
 
 def get_frame_names(frames):
     nclips = 1
@@ -80,8 +84,9 @@ def get_frame_names(frames):
         diff = num_frames - num_frames_necessary
         if not is_val:
             offset = np.random.randint(0, diff)
-    frame_names = frame_names[offset:num_frames_necessary + offset:step_size]
+    frame_names = frame_names[offset : num_frames_necessary + offset : step_size]
     return frame_names
+
 
 def load_model(config_path):
     config = load_config(config_path)
@@ -102,18 +107,15 @@ def load_model(config_path):
         print("No checkpoint found at '{}'".format(config["checkpoint"]))
     return model
 
+
 @app.route("/page_content")
 def page_content():
     page = current_page["page"]
     page_html = read_html_file(join("static", page))
     return render_template_string(page_html)
 
-def process_video_stream(model, device, transform):
-    cap = cv2.VideoCapture(-1)
-    if not cap.isOpened():
-        print("Error: Could not open webcam.")
-        return
 
+def process_video_stream(model, device, transform, arduino_port):
     width = 176
     height = 100
     idx = 0
@@ -122,73 +124,65 @@ def process_video_stream(model, device, transform):
     frames = np.empty((0, height, width, 3))
     gesture_label_int = None
     start_time = time.time()
-    try:
-        while True:
-            success, raw_frame = cap.read()
-            if not success:
-                print("Video Capture Ended")
-                break
-            raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
-            raw_frame = cv2.resize(raw_frame, (176, 100))
-            frames = np.append(frames, [raw_frame], axis=0)
-            n += 1
-            if n == 37:
-                imgs = []
-                frames = get_frame_names(frames)
-                for frame in frames:
-                    frame = Image.fromarray((frame * 255).astype(np.uint8))
-                    frame = transform(frame)
-                    imgs.append(torch.unsqueeze(frame, 0))
 
-                data = torch.cat(imgs)
-                data = data.permute(1, 0, 2, 3)
-                data = data[None, :, :, :, :]
-                target = torch.tensor([2])
-                data = data.to(device)
+    while True:
+        raw_frame = capture_image()
+        raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
+        raw_frame = cv2.resize(raw_frame, (176, 100))
+        frames = np.append(frames, [raw_frame], axis=0)
+        n += 1
+        if n == 37:
+            imgs = []
+            frames = get_frame_names(frames)
+            for frame in frames:
+                frame = Image.fromarray((frame * 255).astype(np.uint8))
+                frame = transform(frame)
+                imgs.append(torch.unsqueeze(frame, 0))
 
-                model.eval()
-                output = model(data)
+            data = torch.cat(imgs)
+            data = data.permute(1, 0, 2, 3)
+            data = data[None, :, :, :, :]
+            target = torch.tensor([2])
+            data = data.to(device)
 
-                gesture_label_int, gesture_detected = accuracy(
-                    output.detach(), target.detach().cpu(), topk=(1,)
-                )
-                gesture_buffer.append(gesture_label_int)
-                gesture_buffer = gesture_buffer[-30:]
-                no_action_count = gesture_buffer.count(0)
-                print("no action count:", no_action_count)
-                n = 0
-                frames = np.empty((0, 100, 176, 3))
-                if no_action_count > DELAY_COUNT:
-                    check_time = time.time()
-                    time_delta = check_time - start_time
-                    gesture_buffer.clear()
-                    print("no action seconds elapsed:", time_delta)
-                    if time_delta > 20:
-                        print("Elapsed 20 seconds of inactivity")
-                        idx = 0
-                if gesture_label_int == 1:
-                    start_time = time.time()
-                    idx += 1
-                elif gesture_label_int == 2:
-                    start_time = time.time()
-                    idx -= 1
+            print("predicting...")
+            output = model(data)
+            gesture_label_int, gesture_detected = accuracy(
+                output.detach(), target.detach().cpu(), topk=(1,)
+            )
+            gesture_buffer.append(gesture_label_int)
+            print(gesture_buffer)
+            gesture_buffer = gesture_buffer[-10:]
+            no_action_count = gesture_buffer.count(0)
+            # print("no action count:", no_action_count)
+            n = 0
+            frames = np.empty((0, 100, 176, 3))
+            if no_action_count > DELAY_COUNT:
+                check_time = time.time()
+                time_delta = check_time - start_time
+                gesture_buffer.clear()
+                print("no action seconds elapsed:", time_delta)
+                if time_delta > 20:
+                    print("Elapsed 20 seconds of inactivity")
+                    idx = 0
+            if gesture_label_int == 1:
+                start_time = time.time()
+                idx += 1
+            elif gesture_label_int == 2:
+                start_time = time.time()
+                idx -= 1
 
-                idx = idx % NUM_PAGES
-                page = pages[idx]
-                current_page["page"] = page
+            idx = idx % NUM_PAGES
+            page = pages[idx]
+            current_page["page"] = page
+            if arduino_port:
+                communicate_with_arduino(arduino_port, idx)
 
-                gpio_action(idx)
+            # Emit the page change event to all connected clients
+            socketio.emit("page_change", {"page": page})
 
-                # Emit the page change event to all connected clients
-                socketio.emit("page_change", {"page": page})
 
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
-    finally:
-        cap.release()
-        cv2.destroyAllWindows()
-
-@app.route('/')
+@app.route("/")
 def index():
     page = current_page["page"]
     page_html = read_html_file(join("static", page))
@@ -213,32 +207,20 @@ def index():
     """
     )
 
-@app.route('/video_feed')
-def video_feed():
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-def gen_frames():
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        raise RuntimeError("Could not start video capture.")
-    while True:
-        success, frame = cap.read()
-        if not success:
-            break
-        ret, buffer = cv2.imencode('.jpg', frame)
-        frame = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-    cap.release()
 
 @socketio.on("connect")
 def handle_connect():
     page = current_page["page"]
     emit("page_change", {"page": page})
 
+
 if __name__ == "__main__":
-    setup_gpio()
+    arduino_port = find_arduino_port()
     model = load_model("config.json")
+    model.eval()
+    model = torch.quantization.quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
+    # model = torch.jit.script(model)
+
     device = torch.device("cpu")
     transform = Compose(
         [
@@ -247,13 +229,13 @@ if __name__ == "__main__":
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
-    video_thread = Thread(target=process_video_stream, args=(model, device, transform))
+    video_thread = Thread(
+        target=process_video_stream, args=(model, device, transform, arduino_port)
+    )
     video_thread.daemon = True
     video_thread.start()
 
     # Print the IP address
     hostname = socket.gethostname()
     ip_address = socket.gethostbyname(hostname)
-    print(f"Server is running at http://{ip_address}:5001")
-
     socketio.run(app, host="0.0.0.0", port=5001, debug=True)

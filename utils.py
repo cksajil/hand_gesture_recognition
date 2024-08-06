@@ -1,10 +1,14 @@
+import os
+import time
 import json
-import torch
-import base64
+import serial
+import subprocess
+import numpy as np
+from PIL import Image
 import torch.nn as nn
 from os.path import join
+import serial.tools.list_ports
 
-# import RPi.GPIO as GPIO
 
 led_map = {1: 7, 2: 11, 3: 13, 4: 15, 5: 12, 6: 16, 7: 18, 8: 22}
 
@@ -56,33 +60,76 @@ def read_html_file(file_path):
         return None
 
 
-def setup_gpio():
-    """Function to set mode for GPIO pins"""
-    pass
-    # GPIO.setwarnings(False)  # Ignore warning for now
-    # GPIO.setmode(GPIO.BOARD)  # Use physical pin numbering
-    # for key in led_map:
-    #     GPIO.setup(led_map[key], GPIO.OUT, initial=GPIO.LOW)
-
-
-def gpio_clear():
-    for key in led_map:
-        print("Pin number {} is OFF".format(led_map[key]))
-        # GPIO.output(led_map[key], GPIO.LOW)
-
-
-def gpio_action(pin):
-    pass
-    # for key in led_map:
-    #     if key == pin:
-    #         print("Pin number {} is ON".format(led_map[key]))
-    #         # GPIO.output(led_map[key], GPIO.HIGH)
-    #     else:
-    #         print("Pin number {} is OFF".format(led_map[key]))
-    #         # GPIO.output(led_map[key], GPIO.LOW)
-
-
 def load_config(config_name, CONFIG_PATH="./config"):
     with open(join(CONFIG_PATH, config_name)) as file:
         config = json.load(file)
     return config
+
+
+def capture_image():
+    # Define the image filename
+    image_filename = "temp.jpg"
+
+    with open(os.devnull, "w") as devnull:
+        subprocess.run(
+            [
+                "fswebcam",
+                "--no-banner",
+                "-r",
+                "176x100",
+                "--jpeg",
+                "50",
+                image_filename,
+            ],
+            stdout=devnull,
+            stderr=devnull,
+        )
+
+    # Open the image using PIL and convert to a NumPy array
+    with Image.open(image_filename) as img:
+        image_array = np.array(img)
+    return image_array
+
+
+def list_ports():
+    """List all available ports and their descriptions."""
+    ports = list(serial.tools.list_ports.comports())
+    for port in ports:
+        print(
+            f"Port: {port.device}, Description: {port.description}, HWID: {port.hwid}"
+        )
+    return ports
+
+
+def find_arduino_port():
+    """Automatically detect the Arduino COM port."""
+    ports = list_ports()
+    for port in ports:
+        # Check for specific identifiers for your Arduino
+        if "Arduino" in port.description or "FT232R USB UART" in port.description:
+            return port.device
+    # Check for /dev/ttyUSB0 if it's not detected by description
+    for port in ports:
+        if "/dev/ttyUSB0" in port.device:
+            return port.device
+    return None
+
+
+def communicate_with_arduino(port, idx, baud_rate=9600):
+    """Send data to Arduino and control LEDs."""
+    try:
+        # Open the serial port
+        ser = serial.Serial(port, baud_rate, timeout=1)
+        print(f"Connected to {port}")
+        time.sleep(2)  # Wait for Arduino to reset
+
+        # Send commands to turn on/off LEDs
+        while True:
+            ser.write(str(idx).encode())  # Send command to Arduino
+            time.sleep(0.5)  # Wait for the command to be processed
+            response = ser.readline().decode().strip()
+            print(f"Arduino response: {response}")
+
+        ser.close()
+    except serial.SerialException as e:
+        print(f"Error: {e}")
