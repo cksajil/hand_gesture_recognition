@@ -9,4 +9,4 @@ __pycache__/
 .venv/
 
 # Ignore temporary files
-static/temp.jpgs
+static/temp.jpg
