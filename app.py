@@ -10,9 +10,8 @@ import torch.nn as nn
 from os.path import join
 from threading import Thread
 from collections import OrderedDict
-from webserver import WebServer  # Importing WebServer from the webserver package
-from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
-from utils import capture_image
+from http.server import SimpleHTTPRequestHandler, HTTPServer
+from utils import load_config, ConvColumn, setup_gpio, gpio_action, capture_image
 
 NUM_PAGES = 9
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
@@ -175,7 +174,8 @@ def process_video_stream(model, device, transform):
                         current_page["page"] = page
 
                         gpio_action(idx)
-                        socketio.emit("page_change", {"page": page})
+                        # Notify clients about the page change
+                        # Use a WebSocket library or another method for real-time updates
 
                     # Reset gesture count after changing page
                     gesture_count[current_gesture] = 0
@@ -184,20 +184,18 @@ def process_video_stream(model, device, transform):
             frames = frames[overlap:]
 
 
-def page_content():
-    page = current_page["page"]
-    return open(join("static", page), "rb").read()
-
-
-def handle_page_change(page):
-    current_page["page"] = page
+class RequestHandler(SimpleHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/":
+            self.path = "/" + current_page["page"]
+        return super().do_GET()
 
 
 def start_server():
-    server = WebServer(host="0.0.0.0", port=5001)
-    server.add_route("/", lambda: page_content(), "GET")
-    server.add_event("page_change", lambda data: handle_page_change(data["page"]))
-    server.start()
+    server_address = ("0.0.0.0", 5001)
+    httpd = HTTPServer(server_address, RequestHandler)
+    print(f"Starting server at http://{socket.gethostname()}:{server_address[1]}")
+    httpd.serve_forever()
 
 
 if __name__ == "__main__":
@@ -219,6 +217,4 @@ if __name__ == "__main__":
     video_thread.start()
 
     # Print the IP address
-    hostname = socket.gethostname()
-    ip_address = socket.gethostbyname(hostname)
     start_server()
