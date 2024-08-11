@@ -138,6 +138,7 @@ def process_video_stream(model, device, transform):
         try:
             raw_frame = capture_image()
             if raw_frame is None or raw_frame.size == 0:
+                print("Captured an empty or invalid frame.")
                 continue
 
             raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
@@ -156,13 +157,15 @@ def process_video_stream(model, device, transform):
                 data = torch.cat(imgs)
                 data = data.permute(1, 0, 2, 3)
                 data = data[None, :, :, :, :]
-                target = torch.tensor([2])
                 data = data.to(device)
 
+                print(f"Data shape: {data.shape}")
                 output = model(data)
                 gesture_label_int, gesture_detected, prob = accuracy(
-                    output.detach(), target.detach().cpu(), topk=(1,)
+                    output.detach(), torch.tensor([2]).to(device), topk=(1,)
                 )
+
+                print(f"Detected gesture: {gesture_detected}, Probability: {prob}")
 
                 if prob >= threshold:
                     if gesture_count[gesture_label_int] == 0:
