@@ -180,7 +180,6 @@ if __name__ == "__main__":
     setup_gpio()
     model = load_model("config.json")
     model.eval()
-    model = torch.quantization.quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
 
     device = torch.device("cpu")
     transform = Compose(
@@ -190,6 +189,4 @@ if __name__ == "__main__":
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
-    video_thread = Thread(target=process_video_stream, args=(model, device, transform))
-    video_thread.daemon = True
-    video_thread.start()
+    process_video_stream(model, device, transform)
