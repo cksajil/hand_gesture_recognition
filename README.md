@@ -32,3 +32,9 @@ python -m pip install -r requirements.txt
 ```console
 python app.py
 ```
+
+```console
+sudo apt-get install v4l-utils
+v4l2-ctl --set-ctrl=brightness=128
+
+```
