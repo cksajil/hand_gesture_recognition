@@ -92,7 +92,7 @@ def load_config(config_name, CONFIG_PATH="./config"):
 
 def capture_image():
     # Define the image filename
-    image_filename = "temp.jpg"
+    image_filename = "./static/temp.jpg"
 
     with open(os.devnull, "w") as devnull:
         subprocess.run(
