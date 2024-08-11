@@ -122,8 +122,8 @@ def process_video_stream(model, device, transform):
     frames = np.empty((0, height, width, 3))
     window_size = 18  # The number of frames to use for each prediction
     overlap = 2  # The number of overlapping frames between consecutive windows
-    threshold = 0.99  # Probability threshold for considering a prediction
-    consecutive_count = 4  # Number of consecutive predictions needed to change the page
+    threshold = 0.95  # Probability threshold for considering a prediction
+    consecutive_count = 6  # Number of consecutive predictions needed to change the page
     gesture_count = {key: 0 for key in CLASSES.keys()}  # Count for each gesture
     current_gesture = None
     start_time = time.time()
