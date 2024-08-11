@@ -122,58 +122,66 @@ def process_video_stream(model, device, transform):
     start_time = time.time()
 
     while True:
-        raw_frame = capture_image()
-        raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
-        raw_frame = cv2.resize(raw_frame, (176, 100))
-        frames = np.append(frames, [raw_frame], axis=0)
-        n += 1
-        if n % 37 == 0:
-            imgs = []
-            frames = get_frame_names(frames)
-            for frame in frames:
-                frame = Image.fromarray((frame * 255).astype(np.uint8))
-                frame = transform(frame)
-                imgs.append(torch.unsqueeze(frame, 0))
+        try:
+            raw_frame = capture_image()
+            if raw_frame is None:
+                raise ValueError("Camera capture failed")
 
-            data = torch.cat(imgs)
-            data = data.permute(1, 0, 2, 3)
-            data = data[None, :, :, :, :]
-            target = torch.tensor([2])
-            data = data.to(device)
+            raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
+            raw_frame = cv2.resize(raw_frame, (176, 100))
+            frames = np.append(frames, [raw_frame], axis=0)
+            n += 1
 
-            output = model(data)
-            gesture_label_int, gesture_detected = accuracy(
-                output.detach(), target.detach().cpu(), topk=(1,)
-            )
-            n = 0
-            frames = np.empty((0, 100, 176, 3))
+            if n % 37 == 0:
+                imgs = []
+                frames = get_frame_names(frames)
+                for frame in frames:
+                    frame = Image.fromarray((frame * 255).astype(np.uint8))
+                    frame = transform(frame)
+                    imgs.append(torch.unsqueeze(frame, 0))
 
-            if gesture_label_int in [1, 2]:
-                print(gesture_label_int)
+                data = torch.cat(imgs)
+                data = data.permute(1, 0, 2, 3)
+                data = data[None, :, :, :, :]
+                target = torch.tensor([2])
+                data = data.to(device)
 
-            if gesture_label_int == 1:
-                idx -= 1
-                start_time = time.time()
-            elif gesture_label_int == 2:
-                idx += 1
-                start_time = time.time()
-            else:
-                check_time = time.time()
-                time_delta = check_time - start_time
-                time_index = int(time_delta) % 20
-                if time_index > 18:
-                    print("Elapsed 20 seconds of inactivity")
-                    idx = 0
+                output = model(data)
+                gesture_label_int, gesture_detected = accuracy(
+                    output.detach(), target.detach().cpu(), topk=(1,)
+                )
+                n = 0
+                frames = np.empty((0, 100, 176, 3))
+
+                if gesture_label_int in [1, 2]:
+                    print(gesture_label_int)
+
+                if gesture_label_int == 1:
+                    idx -= 1
                     start_time = time.time()
+                elif gesture_label_int == 2:
+                    idx += 1
+                    start_time = time.time()
+                else:
+                    check_time = time.time()
+                    time_delta = check_time - start_time
+                    time_index = int(time_delta) % 20
+                    if time_index > 18:
+                        print("Elapsed 20 seconds of inactivity")
+                        idx = 0
+                        start_time = time.time()
 
-            idx = idx % NUM_PAGES
-            gif_path = os.path.join(
-                "static", pages[idx]
-            )  # Updated to include "static" folder
-            current_page["page"] = gif_path
+                idx = idx % NUM_PAGES
+                gif_path = os.path.join("static", pages[idx])
+                current_page["page"] = gif_path
 
-            gpio_action(idx)
-            display_gif(gif_path)
+                gpio_action(idx)
+                display_gif(gif_path)
+
+        except Exception as e:
+            print(f"Error during video processing: {e}")
+            time.sleep(1)  # Wait before retrying the loop
+            continue  # Restart the loop
 
 
 if __name__ == "__main__":
