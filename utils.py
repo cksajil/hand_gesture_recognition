@@ -102,7 +102,7 @@ def capture_image():
                 "-r",
                 "176x100",
                 "--jpeg",
-                "150",
+                "50",
                 image_filename,
             ],
             stdout=devnull,
