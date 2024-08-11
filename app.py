@@ -10,9 +10,11 @@ import torch.nn as nn
 from os.path import join
 from threading import Thread
 from collections import OrderedDict
+from flask_socketio import SocketIO, emit
+from flask import Flask, render_template_string
 from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
-from http.server import SimpleHTTPRequestHandler, HTTPServer
-from utils import load_config, ConvColumn, setup_gpio, gpio_action, capture_image
+from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
+from utils import capture_image
 
 NUM_PAGES = 9
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
@@ -27,19 +29,21 @@ CLASSES = {
     7: "Pull Two Fingers In",
 }
 pages = [
-    "home.gif",
-    "cpu.gif",
-    "network_card.gif",
-    "smps.gif",
-    "motherboard.gif",
-    "gpu.gif",
-    "fan.gif",
-    "storage.gif",
-    "ram.gif",
+    "home.html",
+    "cpu.html",
+    "network_card.html",
+    "smps.html",
+    "motherboard.html",
+    "gpu.html",
+    "fan.html",
+    "storage.html",
+    "ram.html",
 ]
 
+app = Flask(__name__)
 log = logging.getLogger("werkzeug")
 log.disabled = True
+socketio = SocketIO(app)
 current_page = {"page": pages[0]}
 
 
@@ -104,6 +108,13 @@ def load_model(config_path):
     return model
 
 
+@app.route("/page_content")
+def page_content():
+    page = current_page["page"]
+    page_html = read_html_file(join("static", page))
+    return render_template_string(page_html)
+
+
 def process_video_stream(model, device, transform):
     width = 176
     height = 100
@@ -112,7 +123,7 @@ def process_video_stream(model, device, transform):
     window_size = 18  # The number of frames to use for each prediction
     overlap = 2  # The number of overlapping frames between consecutive windows
     threshold = 0.95  # Probability threshold for considering a prediction
-    consecutive_count = 6  # Number of consecutive predictions needed to change a page
+    consecutive_count = 6  # Number of consecutive predictions needed to change the page
     gesture_count = {key: 0 for key in CLASSES.keys()}  # Count for each gesture
     current_gesture = None
     start_time = time.time()
@@ -175,8 +186,7 @@ def process_video_stream(model, device, transform):
                         current_page["page"] = page
 
                         gpio_action(idx)
-                        # Notify clients about the page change
-                        # Use a WebSocket library or another method for real-time updates
+                        socketio.emit("page_change", {"page": page})
 
                     # Reset gesture count after changing page
                     gesture_count[current_gesture] = 0
@@ -185,21 +195,36 @@ def process_video_stream(model, device, transform):
             frames = frames[overlap:]
 
 
-class RequestHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory="static", **kwargs)
+@app.route("/")
+def index():
+    page = current_page["page"]
+    page_html = read_html_file(join("static", page))
+    return render_template_string(
+        """
+        {{ page_html|safe }}
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+        <script type="text/javascript">
+            var socket = io();
+            socket.on('connect', function() {
+                console.log('Connected to server');
+            });
+            socket.on('page_change', function(data) {
+                console.log('Page change to: ' + data.page);
+                fetch('/page_content')
+                    .then(response => response.text())
+                    .then(html => {
+                        document.body.innerHTML = html;
+                    });
+            });
+        </script>
+    """
+    )
 
-    def do_GET(self):
-        if self.path == "/":
-            self.path = "/" + current_page["page"]
-        return super().do_GET()
 
-
-def start_server():
-    server_address = ("0.0.0.0", 5001)
-    httpd = HTTPServer(server_address, RequestHandler)
-    print(f"Starting server at http://{socket.gethostname()}:{server_address[1]}")
-    httpd.serve_forever()
+@socketio.on("connect")
+def handle_connect():
+    page = current_page["page"]
+    emit("page_change", {"page": page})
 
 
 if __name__ == "__main__":
@@ -221,4 +246,6 @@ if __name__ == "__main__":
     video_thread.start()
 
     # Print the IP address
-    start_server()
+    hostname = socket.gethostname()
+    ip_address = socket.gethostbyname(hostname)
+    socketio.run(app, host="0.0.0.0", port=5001, debug=True)
