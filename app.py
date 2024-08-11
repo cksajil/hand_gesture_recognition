@@ -120,79 +120,74 @@ def process_video_stream(model, device, transform):
     height = 100
     idx = 0
     frames = np.empty((0, height, width, 3))
-    window_size = 18  # The number of frames to use for each prediction
-    overlap = 2  # The number of overlapping frames between consecutive windows
-    threshold = 0.99  # Probability threshold for considering a prediction
-    consecutive_count = 4  # Number of consecutive predictions needed to change the page
-    gesture_count = {key: 0 for key in CLASSES.keys()}  # Count for each gesture
+    window_size = 18
+    overlap = 2
+    threshold = 0.95  # Adjusted threshold
+    consecutive_count = 6  # Adjusted consecutive count
+    gesture_count = {key: 0 for key in CLASSES.keys()}
     current_gesture = None
-    start_time = time.time()
 
     while True:
-        raw_frame = capture_image()
-        raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
-        raw_frame = cv2.resize(raw_frame, (176, 100))
-        frames = np.append(frames, [raw_frame], axis=0)
+        try:
+            raw_frame = capture_image()
+            if raw_frame is None or raw_frame.size == 0:
+                print("Captured an empty or invalid frame.")
+                continue
 
-        # Check if we have enough frames for a prediction
-        if len(frames) >= window_size:
-            # Extract the window of frames to make a prediction
-            frame_window = frames[-window_size:]
-            imgs = []
+            raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
+            raw_frame = cv2.resize(raw_frame, (176, 100))
+            frames = np.append(frames, [raw_frame], axis=0)
 
-            for frame in frame_window:
-                frame = Image.fromarray((frame * 255).astype(np.uint8))
-                frame = transform(frame)
-                imgs.append(torch.unsqueeze(frame, 0))
+            if len(frames) >= window_size:
+                frame_window = frames[-window_size:]
+                imgs = []
 
-            data = torch.cat(imgs)
-            data = data.permute(1, 0, 2, 3)
-            data = data[None, :, :, :, :]
-            target = torch.tensor([2])
-            data = data.to(device)
+                for frame in frame_window:
+                    frame = Image.fromarray((frame * 255).astype(np.uint8))
+                    frame = transform(frame)
+                    imgs.append(torch.unsqueeze(frame, 0))
 
-            output = model(data)
-            gesture_label_int, gesture_detected, prob = accuracy(
-                output.detach(), target.detach().cpu(), topk=(1,)
-            )
+                data = torch.cat(imgs)
+                data = data.permute(1, 0, 2, 3)
+                data = data[None, :, :, :, :]
+                data = data.to(device)
 
-            if prob >= threshold:
-                if gesture_count[gesture_label_int] == 0:
-                    # Start counting consecutive predictions
-                    current_gesture = gesture_label_int
-                if gesture_label_int == current_gesture:
-                    gesture_count[gesture_label_int] += 1
-                else:
-                    # Reset the count for the previous gesture
-                    gesture_count[current_gesture] = 0
-                    current_gesture = gesture_label_int
-                    gesture_count[current_gesture] = 1
+                output = model(data)
+                gesture_label_int, gesture_detected, prob = accuracy(
+                    output.detach(), torch.tensor([2]).to(device), topk=(1,)
+                )
 
-                if gesture_count[current_gesture] >= consecutive_count:
-                    if current_gesture in [
-                        1,
-                        2,
-                    ]:  # Only change pages for specific gestures
-                        print(current_gesture)
+                print(f"Detected gesture: {gesture_detected}, Probability: {prob}")
 
-                        if current_gesture == 1:
-                            idx -= 1
-                            start_time = time.time()
-                        elif current_gesture == 2:
-                            idx += 1
-                            start_time = time.time()
-                        idx = idx % NUM_PAGES
-                        page = pages[idx]
-                        current_page["page"] = page
+                if prob >= threshold:
+                    if gesture_count[gesture_label_int] == 0:
+                        current_gesture = gesture_label_int
+                    if gesture_label_int == current_gesture:
+                        gesture_count[gesture_label_int] += 1
+                    else:
+                        gesture_count[current_gesture] = 0
+                        current_gesture = gesture_label_int
+                        gesture_count[current_gesture] = 1
 
-                        gpio_action(idx)
-                        socketio.emit("page_change", {"page": page})
+                    if gesture_count[current_gesture] >= consecutive_count:
+                        if current_gesture in [1, 2]:
+                            if current_gesture == 1:
+                                idx -= 1
+                            elif current_gesture == 2:
+                                idx += 1
+                            idx = idx % NUM_PAGES
+                            page = pages[idx]
+                            current_page["page"] = page
 
-                    # Reset gesture count after changing page
-                    gesture_count[current_gesture] = 0
+                            gpio_action(idx)
+                            socketio.emit("page_change", {"page": page})
 
-            # Slide the window by the overlap amount
+                        gesture_count[current_gesture] = 0
+
             frames = frames[overlap:]
+
+        except Exception as e:
+            print(f"Error processing video stream: {e}")
 
 
 @app.route("/")
