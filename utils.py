@@ -101,8 +101,6 @@ def capture_image():
                 "--no-banner",
                 "-r",
                 "176x100",
-                "--jpeg",
-                "50",
                 image_filename,
             ],
             stdout=devnull,
