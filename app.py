@@ -2,6 +2,7 @@ import os
 import cv2
 import time
 import torch
+import threading
 import numpy as np
 from PIL import Image
 import torch.nn as nn
@@ -99,17 +100,22 @@ def load_model(config_path):
 
 
 def display_gif(gif_path):
-    cap = cv2.VideoCapture(gif_path)
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            continue
-        cv2.imshow("GIF Display", frame)
-        if cv2.waitKey(50) & 0xFF == ord("q"):
-            break
-    cap.release()
-    cv2.destroyAllWindows()
+    def gif_thread():
+        cap = cv2.VideoCapture(gif_path)
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                continue
+            cv2.imshow("GIF Display", frame)
+            if cv2.waitKey(50) & 0xFF == ord("q"):
+                break
+        cap.release()
+        cv2.destroyAllWindows()
+
+    # Start GIF display in a separate thread
+    thread = threading.Thread(target=gif_thread)
+    thread.start()
 
 
 def process_video_stream(model, device, transform):
@@ -197,4 +203,6 @@ if __name__ == "__main__":
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
-    process_video_stream(model, device, transform)
+    video_thread = Thread(target=process_video_stream, args=(model, device, transform))
+    video_thread.daemon = True
+    video_thread.start()
