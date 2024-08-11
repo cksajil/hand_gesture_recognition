@@ -13,14 +13,8 @@ from collections import OrderedDict
 from flask_socketio import SocketIO, emit
 from flask import Flask, render_template_string
 from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
-from utils import (
-    load_config,
-    ConvColumn,
-    setup_gpio,
-    gpio_action,
-    read_html_file,
-    capture_image,
-)
+from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
+from utils import capture_image
 
 NUM_PAGES = 9
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
@@ -126,76 +120,79 @@ def process_video_stream(model, device, transform):
     height = 100
     idx = 0
     frames = np.empty((0, height, width, 3))
-    window_size = 18
-    overlap = 2
-    threshold = 0.99
-    consecutive_count = 4
-    gesture_count = {key: 0 for key in CLASSES.keys()}
+    window_size = 18  # The number of frames to use for each prediction
+    overlap = 2  # The number of overlapping frames between consecutive windows
+    threshold = 0.99  # Probability threshold for considering a prediction
+    consecutive_count = 4  # Number of consecutive predictions needed to change the page
+    gesture_count = {key: 0 for key in CLASSES.keys()}  # Count for each gesture
     current_gesture = None
     start_time = time.time()
 
     while True:
-        try:
-            raw_frame = capture_image()
-            if raw_frame is None or raw_frame.size == 0:
-                print("Captured an empty or invalid frame.")
-                continue
+        raw_frame = capture_image()
+        raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
+        raw_frame = cv2.resize(raw_frame, (176, 100))
+        frames = np.append(frames, [raw_frame], axis=0)
 
-            raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
-            raw_frame = cv2.resize(raw_frame, (176, 100))
-            frames = np.append(frames, [raw_frame], axis=0)
+        # Check if we have enough frames for a prediction
+        if len(frames) >= window_size:
+            # Extract the window of frames to make a prediction
+            frame_window = frames[-window_size:]
+            imgs = []
 
-            if len(frames) >= window_size:
-                frame_window = frames[-window_size:]
-                imgs = []
+            for frame in frame_window:
+                frame = Image.fromarray((frame * 255).astype(np.uint8))
+                frame = transform(frame)
+                imgs.append(torch.unsqueeze(frame, 0))
 
-                for frame in frame_window:
-                    frame = Image.fromarray((frame * 255).astype(np.uint8))
-                    frame = transform(frame)
-                    imgs.append(torch.unsqueeze(frame, 0))
+            data = torch.cat(imgs)
+            data = data.permute(1, 0, 2, 3)
+            data = data[None, :, :, :, :]
+            target = torch.tensor([2])
+            data = data.to(device)
 
-                data = torch.cat(imgs)
-                data = data.permute(1, 0, 2, 3)
-                data = data[None, :, :, :, :]
-                data = data.to(device)
+            output = model(data)
+            gesture_label_int, gesture_detected, prob = accuracy(
+                output.detach(), target.detach().cpu(), topk=(1,)
+            )
 
-                print(f"Data shape: {data.shape}")
-                output = model(data)
-                gesture_label_int, gesture_detected, prob = accuracy(
-                    output.detach(), torch.tensor([2]).to(device), topk=(1,)
-                )
+            if prob >= threshold:
+                if gesture_count[gesture_label_int] == 0:
+                    # Start counting consecutive predictions
+                    current_gesture = gesture_label_int
+                if gesture_label_int == current_gesture:
+                    gesture_count[gesture_label_int] += 1
+                else:
+                    # Reset the count for the previous gesture
+                    gesture_count[current_gesture] = 0
+                    current_gesture = gesture_label_int
+                    gesture_count[current_gesture] = 1
 
-                print(f"Detected gesture: {gesture_detected}, Probability: {prob}")
+                if gesture_count[current_gesture] >= consecutive_count:
+                    if current_gesture in [
+                        1,
+                        2,
+                    ]:  # Only change pages for specific gestures
+                        print(current_gesture)
 
-                if prob >= threshold:
-                    if gesture_count[gesture_label_int] == 0:
-                        current_gesture = gesture_label_int
-                    if gesture_label_int == current_gesture:
-                        gesture_count[gesture_label_int] += 1
-                    else:
-                        gesture_count[current_gesture] = 0
-                        current_gesture = gesture_label_int
-                        gesture_count[current_gesture] = 1
+                        if current_gesture == 1:
+                            idx -= 1
+                            start_time = time.time()
+                        elif current_gesture == 2:
+                            idx += 1
+                            start_time = time.time()
+                        idx = idx % NUM_PAGES
+                        page = pages[idx]
+                        current_page["page"] = page
 
-                    if gesture_count[current_gesture] >= consecutive_count:
-                        if current_gesture in [1, 2]:
-                            if current_gesture == 1:
-                                idx -= 1
-                            elif current_gesture == 2:
-                                idx += 1
-                            idx = idx % NUM_PAGES
-                            page = pages[idx]
-                            current_page["page"] = page
+                        gpio_action(idx)
+                        socketio.emit("page_change", {"page": page})
 
-                            gpio_action(idx)
-                            socketio.emit("page_change", {"page": page})
+                    # Reset gesture count after changing page
+                    gesture_count[current_gesture] = 0
 
-                        gesture_count[current_gesture] = 0
-
+            # Slide the window by the overlap amount
             frames = frames[overlap:]
-
-        except Exception as e:
-            print(f"Error processing video stream: {e}")
 
 
 @app.route("/")
@@ -205,14 +202,6 @@ def index():
     return render_template_string(
         """
         {{ page_html|safe }}
-        <style>
-            body {
-                transition: opacity 0.5s ease;
-            }
-            .fade-out {
-                opacity: 0;
-            }
-        </style>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
         <script type="text/javascript">
             var socket = io();
@@ -221,15 +210,11 @@ def index():
             });
             socket.on('page_change', function(data) {
                 console.log('Page change to: ' + data.page);
-                document.body.classList.add('fade-out');
-                setTimeout(function() {
-                    fetch('/page_content')
-                        .then(response => response.text())
-                        .then(html => {
-                            document.body.innerHTML = html;
-                            document.body.classList.remove('fade-out');
-                        });
-                }, 500); // Match the duration of the CSS transition
+                fetch('/page_content')
+                    .then(response => response.text())
+                    .then(html => {
+                        document.body.innerHTML = html;
+                    });
             });
         </script>
     """
@@ -243,15 +228,6 @@ def handle_connect():
 
 
 if __name__ == "__main__":
-    import signal
-    import sys
-
-    def signal_handler(sig, frame):
-        print("Shutting down gracefully...")
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, signal_handler)
-
     setup_gpio()
     model = load_model("config.json")
     model.eval()
@@ -269,7 +245,7 @@ if __name__ == "__main__":
     video_thread.daemon = True
     video_thread.start()
 
+    # Print the IP address
     hostname = socket.gethostname()
     ip_address = socket.gethostbyname(hostname)
-    print(f"Running on http://{ip_address}:5001/")
     socketio.run(app, host="0.0.0.0", port=5001, debug=True)
