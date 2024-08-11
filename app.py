@@ -212,8 +212,7 @@ if __name__ == "__main__":
     setup_gpio()
     model = load_model("config.json")
     model.eval()
-    model = torch.quantization.quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
-    # model = torch.jit.script(model)
+    model = torch.jit.script(model)
 
     device = torch.device("cpu")
     transform = Compose(
