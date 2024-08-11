@@ -150,6 +150,8 @@ def process_video_stream(model, device, transform):
             n = 0
             frames = np.empty((0, 100, 176, 3))
 
+            print(gesture_label_int)
+
             if gesture_label_int == 1:
                 idx -= 1
                 start_time = time.time()
