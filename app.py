@@ -93,9 +93,9 @@ def load_model(config_path):
                     new_state_dict[name] = val
                 model.load_state_dict(new_state_dict)
                 break
-        print("Loaded checkpoint")
+        print("Loaded checkpoint successfully.")
     else:
-        print("No checkpoint found at '{}'".format(config["checkpoint"]))
+        print(f"No checkpoint found at '{config['checkpoint']}'")
     return model
 
 
@@ -119,6 +119,7 @@ def display_gif(gif_path):
 
 
 def process_video_stream(model, device, transform):
+    print("Starting video processing...")
     width = 176
     height = 100
     idx = 0
@@ -139,6 +140,7 @@ def process_video_stream(model, device, transform):
             n += 1
 
             if n % 37 == 0:
+                print("Processing frames for gesture recognition...")
                 imgs = []
                 frames = get_frame_names(frames)
                 for frame in frames:
@@ -159,8 +161,7 @@ def process_video_stream(model, device, transform):
                 n = 0
                 frames = np.empty((0, 100, 176, 3))
 
-                if gesture_label_int in [1, 2]:
-                    print(gesture_label_int)
+                print(f"Detected gesture: {gesture_detected} ({gesture_label_int})")
 
                 if gesture_label_int == 1:
                     idx -= 1
@@ -192,6 +193,7 @@ def process_video_stream(model, device, transform):
 
 if __name__ == "__main__":
     setup_gpio()
+    print("Loading model...")
     model = load_model("config.json")
     model.eval()
 
@@ -203,6 +205,14 @@ if __name__ == "__main__":
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
+
+    print("Starting video processing thread...")
     video_thread = Thread(target=process_video_stream, args=(model, device, transform))
     video_thread.daemon = True
     video_thread.start()
+
+    while True:
+        time.sleep(1)  # Keep the main thread alive
+        if not video_thread.is_alive():
+            print("Video processing thread stopped unexpectedly. Exiting.")
+            break
