@@ -10,6 +10,7 @@ import torch.nn as nn
 from os.path import join
 from threading import Thread
 from collections import OrderedDict
+from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 from utils import load_config, ConvColumn, setup_gpio, gpio_action, capture_image
 
