@@ -121,6 +121,8 @@ def process_video_stream(model, device, transform):
     n = 0
     frames = np.empty((0, height, width, 3))
     gesture_label_int = None
+    window_size = 18  # The number of frames to use for each prediction
+    overlap = 9  # The number of overlapping frames between consecutive windows
     start_time = time.time()
 
     while True:
@@ -129,10 +131,14 @@ def process_video_stream(model, device, transform):
         raw_frame = cv2.resize(raw_frame, (176, 100))
         frames = np.append(frames, [raw_frame], axis=0)
         n += 1
-        if n % 37 == 0:
+
+        # Check if we have enough frames for a prediction
+        if len(frames) >= window_size:
+            # Extract the window of frames to make a prediction
+            frame_window = frames[-window_size:]
             imgs = []
-            frames = get_frame_names(frames)
-            for frame in frames:
+
+            for frame in frame_window:
                 frame = Image.fromarray((frame * 255).astype(np.uint8))
                 frame = transform(frame)
                 imgs.append(torch.unsqueeze(frame, 0))
@@ -147,8 +153,6 @@ def process_video_stream(model, device, transform):
             gesture_label_int, gesture_detected = accuracy(
                 output.detach(), target.detach().cpu(), topk=(1,)
             )
-            n = 0
-            frames = np.empty((0, 100, 176, 3))
 
             if gesture_label_int in [1, 2]:
                 print(gesture_label_int)
@@ -174,6 +178,9 @@ def process_video_stream(model, device, transform):
 
             gpio_action(idx)
             socketio.emit("page_change", {"page": page})
+
+            # Slide the window by the overlap amount
+            frames = frames[overlap:]
 
 
 @app.route("/")
