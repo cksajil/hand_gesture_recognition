@@ -119,12 +119,13 @@ def process_video_stream(model, device, transform):
     width = 176
     height = 100
     idx = 0
-    n = 0
     frames = np.empty((0, height, width, 3))
-    gesture_label_int = None
     window_size = 16  # The number of frames to use for each prediction
     overlap = 2  # The number of overlapping frames between consecutive windows
     threshold = 0.99  # Probability threshold for considering a prediction
+    consecutive_count = 3  # Number of consecutive predictions needed to change the page
+    gesture_count = {key: 0 for key in CLASSES.keys()}  # Count for each gesture
+    current_gesture = None
     start_time = time.time()
 
     while True:
@@ -132,7 +133,6 @@ def process_video_stream(model, device, transform):
         raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
         raw_frame = cv2.resize(raw_frame, (176, 100))
         frames = np.append(frames, [raw_frame], axis=0)
-        n += 1
 
         # Check if we have enough frames for a prediction
         if len(frames) >= window_size:
@@ -157,30 +157,39 @@ def process_video_stream(model, device, transform):
             )
 
             if prob >= threshold:
-                if gesture_label_int in [1, 2]:
-                    print(gesture_label_int)
-
-                if gesture_label_int == 1:
-                    idx -= 1
-                    start_time = time.time()
-                elif gesture_label_int == 2:
-                    idx += 1
-                    start_time = time.time()
+                if gesture_count[gesture_label_int] == 0:
+                    # Start counting consecutive predictions
+                    current_gesture = gesture_label_int
+                if gesture_label_int == current_gesture:
+                    gesture_count[gesture_label_int] += 1
                 else:
-                    check_time = time.time()
-                    time_delta = check_time - start_time
-                    time_index = int(time_delta) % 20
-                    if time_index > 18:
-                        print("Elapsed 20 seconds of inactivity")
-                        idx = 0
-                        start_time = time.time()
+                    # Reset the count for the previous gesture
+                    gesture_count[current_gesture] = 0
+                    current_gesture = gesture_label_int
+                    gesture_count[current_gesture] = 1
 
-                idx = idx % NUM_PAGES
-                page = pages[idx]
-                current_page["page"] = page
+                if gesture_count[current_gesture] >= consecutive_count:
+                    if current_gesture in [
+                        1,
+                        2,
+                    ]:  # Only change pages for specific gestures
+                        print(current_gesture)
 
-                gpio_action(idx)
-                socketio.emit("page_change", {"page": page})
+                        if current_gesture == 1:
+                            idx -= 1
+                            start_time = time.time()
+                        elif current_gesture == 2:
+                            idx += 1
+                            start_time = time.time()
+                        idx = idx % NUM_PAGES
+                        page = pages[idx]
+                        current_page["page"] = page
+
+                        gpio_action(idx)
+                        socketio.emit("page_change", {"page": page})
+
+                    # Reset gesture count after changing page
+                    gesture_count[current_gesture] = 0
 
             # Slide the window by the overlap amount
             frames = frames[overlap:]
