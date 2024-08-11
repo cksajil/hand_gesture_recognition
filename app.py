@@ -50,8 +50,9 @@ current_page = {"page": pages[0]}
 def accuracy(output, target, topk=(1,)):
     maxk = max(topk)
     batch_size = target.size(0)
-    _, pred = output.cpu().topk(maxk, 1, True, True)
+    probs, pred = output.cpu().topk(maxk, 1, True, True)
     top_pred = pred[0][0]
+    top_prob = probs[0][0].item()
     gesture_detected = CLASSES[top_pred.item()]
     pred = pred.t()
     correct = pred.eq(target.view(1, -1).expand_as(pred))
@@ -60,7 +61,7 @@ def accuracy(output, target, topk=(1,)):
         correct_k = correct[:k].view(-1).float().sum(0)
         res.append(correct_k.mul_(100.0 / batch_size))
     gesture_label_int = top_pred.item()
-    return gesture_label_int, gesture_detected
+    return gesture_label_int, gesture_detected, top_prob
 
 
 def get_frame_names(frames):
@@ -123,6 +124,7 @@ def process_video_stream(model, device, transform):
     gesture_label_int = None
     window_size = 18  # The number of frames to use for each prediction
     overlap = 9  # The number of overlapping frames between consecutive windows
+    threshold = 0.8  # Probability threshold for considering a prediction
     start_time = time.time()
 
     while True:
@@ -150,34 +152,35 @@ def process_video_stream(model, device, transform):
             data = data.to(device)
 
             output = model(data)
-            gesture_label_int, gesture_detected = accuracy(
+            gesture_label_int, gesture_detected, prob = accuracy(
                 output.detach(), target.detach().cpu(), topk=(1,)
             )
 
-            if gesture_label_int in [1, 2]:
-                print(gesture_label_int)
+            if prob >= threshold:
+                if gesture_label_int in [1, 2]:
+                    print(gesture_label_int)
 
-            if gesture_label_int == 1:
-                idx -= 1
-                start_time = time.time()
-            elif gesture_label_int == 2:
-                idx += 1
-                start_time = time.time()
-            else:
-                check_time = time.time()
-                time_delta = check_time - start_time
-                time_index = int(time_delta) % 20
-                if time_index > 18:
-                    print("Elapsed 20 seconds of inactivity")
-                    idx = 0
+                if gesture_label_int == 1:
+                    idx -= 1
                     start_time = time.time()
+                elif gesture_label_int == 2:
+                    idx += 1
+                    start_time = time.time()
+                else:
+                    check_time = time.time()
+                    time_delta = check_time - start_time
+                    time_index = int(time_delta) % 20
+                    if time_index > 18:
+                        print("Elapsed 20 seconds of inactivity")
+                        idx = 0
+                        start_time = time.time()
 
-            idx = idx % NUM_PAGES
-            page = pages[idx]
-            current_page["page"] = page
+                idx = idx % NUM_PAGES
+                page = pages[idx]
+                current_page["page"] = page
 
-            gpio_action(idx)
-            socketio.emit("page_change", {"page": page})
+                gpio_action(idx)
+                socketio.emit("page_change", {"page": page})
 
             # Slide the window by the overlap amount
             frames = frames[overlap:]
