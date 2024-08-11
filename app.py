@@ -167,7 +167,9 @@ def process_video_stream(model, device, transform):
                     start_time = time.time()
 
             idx = idx % NUM_PAGES
-            gif_path = pages[idx]
+            gif_path = os.path.join(
+                "static", pages[idx]
+            )  # Updated to include "static" folder
             current_page["page"] = gif_path
 
             gpio_action(idx)
@@ -191,9 +193,3 @@ if __name__ == "__main__":
     video_thread = Thread(target=process_video_stream, args=(model, device, transform))
     video_thread.daemon = True
     video_thread.start()
-
-    # Print the IP address
-    hostname = socket.gethostname()
-    ip_address = socket.gethostbyname(hostname)
-    print(f"Server running on IP: {ip_address}")
-    print("Press 'q' to quit.")
