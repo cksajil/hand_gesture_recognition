@@ -5,8 +5,7 @@ import numpy as np
 from PIL import Image
 import torch.nn as nn
 from os.path import join
-
-# import RPi.GPIO as GPIO
+import RPi.GPIO as GPIO
 
 led_map = {1: 7, 2: 11, 3: 13, 4: 15, 5: 12, 6: 16, 7: 18, 8: 22}
 
@@ -58,19 +57,24 @@ def read_html_file(file_path):
         return None
 
 
-def setup_gpio():
+def setup_gpio(auto_pilot_pin):
     """Function to set mode for GPIO pins"""
     pass
     # GPIO.setwarnings(False)  # Ignore warning for now
     # GPIO.setmode(GPIO.BOARD)  # Use physical pin numbering
     # for key in led_map:
     #     GPIO.setup(led_map[key], GPIO.OUT, initial=GPIO.LOW)
+    # GPIO.setup(auto_pilot_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
 
 def gpio_clear():
     for key in led_map:
         print("Pin number {} is OFF".format(led_map[key]))
         # GPIO.output(led_map[key], GPIO.LOW)
+
+
+def read_gpio_pin(GPIO_PIN):
+    return GPIO.input(GPIO_PIN)  # Read the state of the GPIO pin
 
 
 def gpio_action(pin):

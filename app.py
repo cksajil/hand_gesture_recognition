@@ -7,6 +7,7 @@ import socket
 import numpy as np
 from PIL import Image
 import torch.nn as nn
+import RPi.GPIO as GPIO
 from os.path import join
 from threading import Thread
 from collections import OrderedDict
@@ -14,8 +15,9 @@ from flask_socketio import SocketIO, emit
 from flask import Flask, render_template_string
 from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
 from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
-from utils import capture_image
+from utils import capture_image, read_gpio_pin
 
+auto_pilot_pin = 17
 NUM_PAGES = 9
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
 CLASSES = {
@@ -115,18 +117,19 @@ def page_content():
     return render_template_string(page_html)
 
 
-def process_video_stream(model, device, transform):
+def process_video_stream(model, device, transform, auto_pilot=False):
     width = 176
     height = 100
     idx = 0
     frames = np.empty((0, height, width, 3))
-    window_size = 18  # The number of frames to use for each prediction
-    overlap = 2  # The number of overlapping frames between consecutive windows
-    threshold = 0.95  # Probability threshold for considering a prediction
-    consecutive_count = 6  # Number of consecutive predictions needed to change the page
-    gesture_count = {key: 0 for key in CLASSES.keys()}  # Count for each gesture
+    window_size = 18
+    overlap = 2
+    threshold = 0.95
+    consecutive_count = 6
+    gesture_count = {key: 0 for key in CLASSES.keys()}
     current_gesture = None
     start_time = time.time()
+    last_gesture_time = time.time()  # Initialize last gesture time
 
     while True:
         raw_frame = capture_image()
@@ -134,64 +137,64 @@ def process_video_stream(model, device, transform):
         raw_frame = cv2.resize(raw_frame, (176, 100))
         frames = np.append(frames, [raw_frame], axis=0)
 
-        # Check if we have enough frames for a prediction
         if len(frames) >= window_size:
-            # Extract the window of frames to make a prediction
             frame_window = frames[-window_size:]
-            imgs = []
-
-            for frame in frame_window:
-                frame = Image.fromarray((frame * 255).astype(np.uint8))
-                frame = transform(frame)
-                imgs.append(torch.unsqueeze(frame, 0))
-
-            data = torch.cat(imgs)
-            data = data.permute(1, 0, 2, 3)
-            data = data[None, :, :, :, :]
-            target = torch.tensor([2])
+            imgs = [
+                transform(Image.fromarray((frame * 255).astype(np.uint8)))
+                for frame in frame_window
+            ]
+            data = torch.cat([torch.unsqueeze(img, 0) for img in imgs]).permute(
+                1, 0, 2, 3
+            )[None, :, :, :, :]
             data = data.to(device)
 
-            output = model(data)
-            gesture_label_int, gesture_detected, prob = accuracy(
-                output.detach(), target.detach().cpu(), topk=(1,)
-            )
+            try:
+                output = model(data)
+                gesture_label_int, gesture_detected, prob = accuracy(
+                    output.detach(), torch.tensor([2]), topk=(1,)
+                )
+            except Exception as e:
+                logging.error(f"Error during model inference: {e}")
+                continue
+
+            current_time = time.time()
 
             if prob >= threshold:
                 if gesture_count[gesture_label_int] == 0:
-                    # Start counting consecutive predictions
                     current_gesture = gesture_label_int
                 if gesture_label_int == current_gesture:
                     gesture_count[gesture_label_int] += 1
                 else:
-                    # Reset the count for the previous gesture
                     gesture_count[current_gesture] = 0
                     current_gesture = gesture_label_int
                     gesture_count[current_gesture] = 1
 
                 if gesture_count[current_gesture] >= consecutive_count:
-                    if current_gesture in [
-                        1,
-                        2,
-                    ]:  # Only change pages for specific gestures
-                        print(current_gesture)
-
-                        if current_gesture == 1:
-                            idx -= 1
-                            start_time = time.time()
-                        elif current_gesture == 2:
-                            idx += 1
-                            start_time = time.time()
-                        idx = idx % NUM_PAGES
+                    if current_gesture in [1, 2]:
+                        idx = (idx - 1 if current_gesture == 1 else idx + 1) % NUM_PAGES
                         page = pages[idx]
                         current_page["page"] = page
 
                         gpio_action(idx)
                         socketio.emit("page_change", {"page": page})
+                        logging.info(f"Changed page to: {page}")
 
-                    # Reset gesture count after changing page
                     gesture_count[current_gesture] = 0
 
-            # Slide the window by the overlap amount
+                last_gesture_time = current_time  # Update last gesture time
+
+            if auto_pilot:
+                if current_time - last_gesture_time >= 10:
+                    idx = (idx + 1) % NUM_PAGES  # Move forward to the next page
+                    page = pages[idx]
+                    current_page["page"] = page
+
+                    gpio_action(idx)
+                    socketio.emit("page_change", {"page": page})
+                    logging.info(f"Automatically changed page to: {page}")
+
+                    last_gesture_time = current_time  # Reset the last gesture time
+
             frames = frames[overlap:]
 
 
@@ -228,7 +231,7 @@ def handle_connect():
 
 
 if __name__ == "__main__":
-    setup_gpio()
+    setup_gpio(auto_pilot_pin)
     model = load_model("config.json")
     model.eval()
     model = torch.jit.script(model)
@@ -241,7 +244,10 @@ if __name__ == "__main__":
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
-    video_thread = Thread(target=process_video_stream, args=(model, device, transform))
+    auto_pilot = read_gpio_pin() == GPIO.HIGH
+    video_thread = Thread(
+        target=process_video_stream, args=(model, device, transform, True)
+    )
     video_thread.daemon = True
     video_thread.start()
 
