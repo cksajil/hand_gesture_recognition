@@ -7,7 +7,8 @@ import socket
 import numpy as np
 from PIL import Image
 import torch.nn as nn
-import RPi.GPIO as GPIO
+
+# import RPi.GPIO as GPIO
 from os.path import join
 from threading import Thread
 from collections import OrderedDict
@@ -244,7 +245,8 @@ if __name__ == "__main__":
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
-    auto_pilot = read_gpio_pin() == GPIO.HIGH
+    # auto_pilot = read_gpio_pin() == GPIO.HIGH
+    auto_pilot = True
     video_thread = Thread(
         target=process_video_stream, args=(model, device, transform, True)
     )
