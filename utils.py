@@ -127,7 +127,8 @@ def gpio_clear():
 
 
 def read_gpio_pin(GPIO_PIN):
-    return GPIO.input(GPIO_PIN)  # Read the state of the GPIO pin
+    pass
+    # return GPIO.input(GPIO_PIN)  # Read the state of the GPIO pin
 
 
 def gpio_action(pin):
