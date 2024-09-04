@@ -7,6 +7,8 @@ import socket
 import numpy as np
 from PIL import Image
 import torch.nn as nn
+
+# import RPi.GPIO as GPIO
 from os.path import join
 from threading import Thread
 from collections import OrderedDict
@@ -14,8 +16,9 @@ from flask_socketio import SocketIO, emit
 from flask import Flask, render_template_string
 from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
 from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
-from utils import capture_image
+from utils import capture_image, read_gpio_pin
 
+auto_pilot_pin = 17
 NUM_PAGES = 9
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
 CLASSES = {
@@ -114,7 +117,7 @@ def page_content():
     return render_template_string(page_html)
 
 
-def process_video_stream(model, device, transform):
+def process_video_stream(model, device, transform, auto_pilot=False):
     width = 176
     height = 100
     idx = 0
@@ -157,13 +160,12 @@ def process_video_stream(model, device, transform):
                 idx += 1
                 start_time = time.time()
             else:
-                check_time = time.time()
-                time_delta = check_time - start_time
-                time_index = int(time_delta) % 20
-                if time_index > 18:
-                    print("Elapsed 20 seconds of inactivity")
-                    idx = 0
-                    start_time = time.time()
+                if auto_pilot:
+                    check_time = time.time()
+                    time_delta = check_time - start_time
+                    if time_delta >= 10:
+                        idx = (idx + 1) % NUM_PAGES
+                        start_time = time.time()
 
             idx = idx % NUM_PAGES
             page = pages[idx]
