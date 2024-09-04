@@ -58,24 +58,19 @@ def read_html_file(file_path):
         return None
 
 
-def setup_gpio(auto_pilot_pin):
+def setup_gpio():
     """Function to set mode for GPIO pins"""
     pass
     # GPIO.setwarnings(False)  # Ignore warning for now
     # GPIO.setmode(GPIO.BOARD)  # Use physical pin numbering
     # for key in led_map:
     #     GPIO.setup(led_map[key], GPIO.OUT, initial=GPIO.LOW)
-    # GPIO.setup(auto_pilot_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
 
 def gpio_clear():
     for key in led_map:
         print("Pin number {} is OFF".format(led_map[key]))
         # GPIO.output(led_map[key], GPIO.LOW)
-
-
-def read_gpio_pin(GPIO_PIN):
-    return GPIO.input(GPIO_PIN)  # Read the state of the GPIO pin
 
 
 def gpio_action(pin):
@@ -97,7 +92,7 @@ def load_config(config_name, CONFIG_PATH="./config"):
 
 def capture_image():
     # Define the image filename
-    image_filename = "./static/temp.jpg"
+    image_filename = "temp.jpg"
 
     with open(os.devnull, "w") as devnull:
         subprocess.run(
@@ -106,6 +101,8 @@ def capture_image():
                 "--no-banner",
                 "-r",
                 "176x100",
+                "--jpeg",
+                "50",
                 image_filename,
             ],
             stdout=devnull,

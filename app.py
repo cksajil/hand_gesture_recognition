@@ -7,8 +7,6 @@ import socket
 import numpy as np
 from PIL import Image
 import torch.nn as nn
-
-# import RPi.GPIO as GPIO
 from os.path import join
 from threading import Thread
 from collections import OrderedDict
@@ -16,9 +14,8 @@ from flask_socketio import SocketIO, emit
 from flask import Flask, render_template_string
 from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
 from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
-from utils import capture_image, read_gpio_pin
+from utils import capture_image
 
-auto_pilot_pin = 17
 NUM_PAGES = 9
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
 CLASSES = {
@@ -53,9 +50,8 @@ current_page = {"page": pages[0]}
 def accuracy(output, target, topk=(1,)):
     maxk = max(topk)
     batch_size = target.size(0)
-    probs, pred = output.cpu().topk(maxk, 1, True, True)
+    _, pred = output.cpu().topk(maxk, 1, True, True)
     top_pred = pred[0][0]
-    top_prob = probs[0][0].item()
     gesture_detected = CLASSES[top_pred.item()]
     pred = pred.t()
     correct = pred.eq(target.view(1, -1).expand_as(pred))
@@ -64,7 +60,7 @@ def accuracy(output, target, topk=(1,)):
         correct_k = correct[:k].view(-1).float().sum(0)
         res.append(correct_k.mul_(100.0 / batch_size))
     gesture_label_int = top_pred.item()
-    return gesture_label_int, gesture_detected, top_prob
+    return gesture_label_int, gesture_detected
 
 
 def get_frame_names(frames):
@@ -118,85 +114,63 @@ def page_content():
     return render_template_string(page_html)
 
 
-def process_video_stream(model, device, transform, auto_pilot=False):
+def process_video_stream(model, device, transform):
     width = 176
     height = 100
     idx = 0
+    n = 0
     frames = np.empty((0, height, width, 3))
-    window_size = 18
-    overlap = 2
-    threshold = 0.95
-    consecutive_count = 6
-    gesture_count = {key: 0 for key in CLASSES.keys()}
-    current_gesture = None
+    gesture_label_int = None
     start_time = time.time()
-    last_gesture_time = time.time()  # Initialize last gesture time
 
     while True:
         raw_frame = capture_image()
         raw_frame = cv2.cvtColor(raw_frame, cv2.COLOR_BGR2RGB)
         raw_frame = cv2.resize(raw_frame, (176, 100))
         frames = np.append(frames, [raw_frame], axis=0)
+        n += 1
+        if n % 37 == 0:
+            imgs = []
+            frames = get_frame_names(frames)
+            for frame in frames:
+                frame = Image.fromarray((frame * 255).astype(np.uint8))
+                frame = transform(frame)
+                imgs.append(torch.unsqueeze(frame, 0))
 
-        if len(frames) >= window_size:
-            frame_window = frames[-window_size:]
-            imgs = [
-                transform(Image.fromarray((frame * 255).astype(np.uint8)))
-                for frame in frame_window
-            ]
-            data = torch.cat([torch.unsqueeze(img, 0) for img in imgs]).permute(
-                1, 0, 2, 3
-            )[None, :, :, :, :]
+            data = torch.cat(imgs)
+            data = data.permute(1, 0, 2, 3)
+            data = data[None, :, :, :, :]
+            target = torch.tensor([2])
             data = data.to(device)
 
-            try:
-                output = model(data)
-                gesture_label_int, gesture_detected, prob = accuracy(
-                    output.detach(), torch.tensor([2]), topk=(1,)
-                )
-            except Exception as e:
-                logging.error(f"Error during model inference: {e}")
-                continue
+            output = model(data)
+            gesture_label_int, gesture_detected = accuracy(
+                output.detach(), target.detach().cpu(), topk=(1,)
+            )
+            n = 0
+            frames = np.empty((0, 100, 176, 3))
 
-            current_time = time.time()
+            if gesture_label_int == 1:
+                idx -= 1
+                start_time = time.time()
+            elif gesture_label_int == 2:
+                idx += 1
+                start_time = time.time()
+            else:
+                check_time = time.time()
+                time_delta = check_time - start_time
+                time_index = int(time_delta) % 20
+                if time_index > 18:
+                    print("Elapsed 20 seconds of inactivity")
+                    idx = 0
+                    start_time = time.time()
 
-            if prob >= threshold:
-                if gesture_count[gesture_label_int] == 0:
-                    current_gesture = gesture_label_int
-                if gesture_label_int == current_gesture:
-                    gesture_count[gesture_label_int] += 1
-                else:
-                    gesture_count[current_gesture] = 0
-                    current_gesture = gesture_label_int
-                    gesture_count[current_gesture] = 1
+            idx = idx % NUM_PAGES
+            page = pages[idx]
+            current_page["page"] = page
 
-                if gesture_count[current_gesture] >= consecutive_count:
-                    if current_gesture in [1, 2]:
-                        idx = (idx - 1 if current_gesture == 1 else idx + 1) % NUM_PAGES
-                        page = pages[idx]
-                        current_page["page"] = page
-
-                        gpio_action(idx)
-                        socketio.emit("page_change", {"page": page})
-                        logging.info(f"Changed page to: {page}")
-
-                    gesture_count[current_gesture] = 0
-
-                last_gesture_time = current_time  # Update last gesture time
-
-            if auto_pilot:
-                if current_time - last_gesture_time >= 10:
-                    idx = (idx + 1) % NUM_PAGES  # Move forward to the next page
-                    page = pages[idx]
-                    current_page["page"] = page
-
-                    gpio_action(idx)
-                    socketio.emit("page_change", {"page": page})
-                    logging.info(f"Automatically changed page to: {page}")
-
-                    last_gesture_time = current_time  # Reset the last gesture time
-
-            frames = frames[overlap:]
+            gpio_action(idx)
+            socketio.emit("page_change", {"page": page})
 
 
 @app.route("/")
@@ -232,10 +206,11 @@ def handle_connect():
 
 
 if __name__ == "__main__":
-    setup_gpio(auto_pilot_pin)
+    setup_gpio()
     model = load_model("config.json")
     model.eval()
-    model = torch.jit.script(model)
+    model = torch.quantization.quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
+    # model = torch.jit.script(model)
 
     device = torch.device("cpu")
     transform = Compose(
@@ -245,11 +220,7 @@ if __name__ == "__main__":
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
-    # auto_pilot = read_gpio_pin() == GPIO.HIGH
-    auto_pilot = True
-    video_thread = Thread(
-        target=process_video_stream, args=(model, device, transform, True)
-    )
+    video_thread = Thread(target=process_video_stream, args=(model, device, transform))
     video_thread.daemon = True
     video_thread.start()
 
