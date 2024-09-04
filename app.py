@@ -160,10 +160,13 @@ def process_video_stream(model, device, transform, auto_pilot=True):
                 idx += 1
                 start_time = time.time()
             else:
+                print("No valid gesture detected")
                 if auto_pilot:
                     check_time = time.time()
                     time_delta = check_time - start_time
-                    if time_delta >= 10:
+
+                    if time_delta >= 15:
+                        print("Elaspsed 15 secs inactivity")
                         idx = (idx + 1) % NUM_PAGES
                         start_time = time.time()
 
