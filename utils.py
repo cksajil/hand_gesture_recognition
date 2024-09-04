@@ -73,6 +73,10 @@ def gpio_clear():
         # GPIO.output(led_map[key], GPIO.LOW)
 
 
+def read_gpio_pin(GPIO_PIN):
+    return GPIO.input(GPIO_PIN)  # Read the state of the GPIO pin
+
+
 def gpio_action(pin):
     pass
     # for key in led_map:
