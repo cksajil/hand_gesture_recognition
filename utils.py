@@ -58,13 +58,14 @@ def read_html_file(file_path):
         return None
 
 
-def setup_gpio():
+def setup_gpio(auto_pilot_pin):
     """Function to set mode for GPIO pins"""
     pass
     # GPIO.setwarnings(False)  # Ignore warning for now
     # GPIO.setmode(GPIO.BOARD)  # Use physical pin numbering
     # for key in led_map:
     #     GPIO.setup(led_map[key], GPIO.OUT, initial=GPIO.LOW)
+    # GPIO.setup(auto_pilot_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
 
 def gpio_clear():
