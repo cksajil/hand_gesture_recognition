@@ -23,7 +23,7 @@ from utils import (
     find_arduino_port,
 )
 
-AUTO_SWITCH_SECONDS = 5
+AUTO_SWITCH_SECONDS = 10
 AUTO_PILOT_PIN = 17
 NUM_PAGES = 9
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
