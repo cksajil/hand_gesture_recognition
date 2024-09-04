@@ -117,7 +117,7 @@ def page_content():
     return render_template_string(page_html)
 
 
-def process_video_stream(model, device, transform, auto_pilot=False):
+def process_video_stream(model, device, transform, auto_pilot=True):
     width = 176
     height = 100
     idx = 0
