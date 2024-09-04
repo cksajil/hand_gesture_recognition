@@ -16,7 +16,12 @@ from flask_socketio import SocketIO, emit
 from flask import Flask, render_template_string
 from torchvision.transforms import Compose, CenterCrop, Normalize, ToTensor
 from utils import load_config, ConvColumn, setup_gpio, gpio_action, read_html_file
-from utils import capture_image, read_gpio_pin
+from utils import (
+    capture_image,
+    read_gpio_pin,
+    communicate_with_arduino,
+    find_arduino_port,
+)
 
 auto_pilot_pin = 17
 NUM_PAGES = 9
@@ -117,7 +122,7 @@ def page_content():
     return render_template_string(page_html)
 
 
-def process_video_stream(model, device, transform, auto_pilot=True):
+def process_video_stream(model, device, transform, arduino_port, auto_pilot=True):
     width = 176
     height = 100
     idx = 0
@@ -173,6 +178,8 @@ def process_video_stream(model, device, transform, auto_pilot=True):
             idx = idx % NUM_PAGES
             page = pages[idx]
             current_page["page"] = page
+            if arduino_port:
+                communicate_with_arduino(arduino_port, idx)
 
             gpio_action(idx)
             socketio.emit("page_change", {"page": page})
@@ -211,6 +218,7 @@ def handle_connect():
 
 
 if __name__ == "__main__":
+    arduino_port = find_arduino_port()
     setup_gpio(auto_pilot_pin)
     model = load_model("config.json")
     model.eval()
@@ -225,7 +233,9 @@ if __name__ == "__main__":
             Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
-    video_thread = Thread(target=process_video_stream, args=(model, device, transform))
+    video_thread = Thread(
+        target=process_video_stream, args=(model, device, transform, arduino_port)
+    )
     video_thread.daemon = True
     video_thread.start()
 
