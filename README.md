@@ -32,7 +32,6 @@ python -m pip install -r requirements.txt
 ```console
 python app.py
 ```
-
 *Brightness control*
 ```console
 sudo apt-get install v4l-utils
