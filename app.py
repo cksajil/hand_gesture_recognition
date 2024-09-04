@@ -23,7 +23,8 @@ from utils import (
     find_arduino_port,
 )
 
-auto_pilot_pin = 17
+AUTO_SWITCH_SECONDS = 5
+AUTO_PILOT_PIN = 17
 NUM_PAGES = 9
 SELECTED_CLASSES = ["Slide Two Fingers Left", "Slide Two Fingers Right"]
 CLASSES = {
@@ -170,7 +171,7 @@ def process_video_stream(model, device, transform, arduino_port, auto_pilot=True
                     check_time = time.time()
                     time_delta = check_time - start_time
 
-                    if time_delta >= 15:
+                    if time_delta >= AUTO_SWITCH_SECONDS:
                         print("Elaspsed 15 secs inactivity")
                         idx = (idx + 1) % NUM_PAGES
                         start_time = time.time()
@@ -219,7 +220,7 @@ def handle_connect():
 
 if __name__ == "__main__":
     arduino_port = find_arduino_port()
-    setup_gpio(auto_pilot_pin)
+    setup_gpio(AUTO_PILOT_PIN)
     model = load_model("config.json")
     model.eval()
     model = torch.quantization.quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
