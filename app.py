@@ -208,7 +208,7 @@ def handle_connect():
 
 
 if __name__ == "__main__":
-    setup_gpio()
+    setup_gpio(auto_pilot_pin)
     model = load_model("config.json")
     model.eval()
     model = torch.quantization.quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
