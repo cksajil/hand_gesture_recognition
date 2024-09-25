@@ -96,15 +96,13 @@ def handle_connect():
 if __name__ == "__main__":
     arduino_port = find_arduino_port()
 
-    video_thread = Thread(
-        target=process_video_stream, args=(arduino_port,)
-    )
+    video_thread = Thread(target=process_video_stream, args=(arduino_port,))
     video_thread.daemon = True
     video_thread.start()
 
     # Print the IP address
-    hostname = socket.gethostname()
-    ip_address = socket.gethostbyname(hostname)
-    print(f"Server running on {ip_address}:5001")
+    # hostname = socket.gethostname()
+    # ip_address = socket.gethostbyname(hostname)
+    # print(f"Server running on {ip_address}:5001")
 
     socketio.run(app, host="0.0.0.0", port=5001, debug=True)
