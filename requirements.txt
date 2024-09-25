@@ -1,6 +1,3 @@
 flask
-opencv-python
-torch
 Pillow
-torchvision
 flask-socketio
