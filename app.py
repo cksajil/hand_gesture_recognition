@@ -11,11 +11,10 @@ from utils import communicate_with_arduino
 from utils import load_config, read_html_file, find_arduino_port
 
 
-NUM_PAGES = 9
-SWITCHING_DELAY = 20
+NUM_PAGES = 8
+SWITCHING_DELAY = 5
 
 pages = [
-    "home.html",
     "cpu.html",
     "network_card.html",
     "smps.html",
@@ -50,7 +49,7 @@ def process_video_stream(arduino_port):
         check_time = time.time()
         time_delta = check_time - start_time
         if time_delta > SWITCHING_DELAY:
-            print("Elapsed 20 seconds")
+            print("Elapsed {} seconds".format(SWITCHING_DELAY))
             start_time = time.time()
             idx += 1
             idx = idx % NUM_PAGES
