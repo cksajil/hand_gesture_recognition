@@ -2,8 +2,9 @@ import time
 import logging
 from os.path import join
 from threading import Thread
+from utils import read_html_file
 from flask_socketio import SocketIO, emit
-from flask import Flask, render_template_string, read_html_file
+from flask import Flask, render_template_string
 
 
 NUM_PAGES = 8
@@ -45,8 +46,7 @@ def process_video_stream():
         if time_delta > SWITCHING_DELAY:
             print("Elapsed {} seconds".format(SWITCHING_DELAY))
             start_time = time.time()
-            idx += 1
-            idx = idx % NUM_PAGES
+            idx = (idx + 1) % NUM_PAGES
             page = pages[idx]
             current_page["page"] = page
             socketio.emit("page_change", {"page": page})
