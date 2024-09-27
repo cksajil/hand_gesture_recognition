@@ -1,14 +1,11 @@
-import os
 import time
 import logging
-import socket
-import numpy as np
 from os.path import join
 from threading import Thread
 from flask_socketio import SocketIO, emit
 from flask import Flask, render_template_string
 from utils import communicate_with_arduino
-from utils import load_config, read_html_file, find_arduino_port
+from utils import read_html_file, find_arduino_port
 
 
 NUM_PAGES = 8
