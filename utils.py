@@ -1,8 +1,6 @@
-import os
 import time
 import json
 import serial
-import numpy as np
 from os.path import join
 import serial.tools.list_ports
 
