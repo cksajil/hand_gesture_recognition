@@ -5,7 +5,7 @@ from threading import Thread
 from utils import read_html_file
 from flask_socketio import SocketIO, emit
 from flask import Flask, render_template_string
-
+from utils import setup_gpio, gpio_action
 
 NUM_PAGES = 8
 SWITCHING_DELAY = 5
@@ -36,6 +36,7 @@ def page_content():
 
 
 def process_video_stream():
+    setup_gpio()
     idx = 0
     start_time = time.time()
 
@@ -49,6 +50,7 @@ def process_video_stream():
             idx = (idx + 1) % NUM_PAGES
             page = pages[idx]
             current_page["page"] = page
+            gpio_action(idx)
             socketio.emit("page_change", {"page": page})
 
 
