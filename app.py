@@ -5,7 +5,8 @@ from threading import Thread
 from utils import read_html_file
 from flask_socketio import SocketIO, emit
 from flask import Flask, render_template_string
-from utils import setup_gpio, gpio_action
+from utils import monitor_inputs
+from utils import setup_gpio, gpio_action, cleanup_gpio
 
 NUM_PAGES = 8
 SWITCHING_DELAY = 5
@@ -44,14 +45,27 @@ def process_video_stream():
         time.sleep(0.5)
         check_time = time.time()
         time_delta = check_time - start_time
-        if time_delta > SWITCHING_DELAY:
-            print("Elapsed {} seconds".format(SWITCHING_DELAY))
-            start_time = time.time()
-            idx = (idx + 1) % NUM_PAGES
+        try:
+            input_monitor = monitor_inputs()
+            forward_status, backward_status = next(input_monitor)
+            if backward_status and not forward_status:
+                idx = (idx - 1) % NUM_PAGES
+                start_time = time.time()
+            elif (
+                forward_status and not backward_status
+            ) or time_delta > SWITCHING_DELAY:
+                print("Elapsed {} seconds or pressed forward".format(SWITCHING_DELAY))
+                idx = (idx + 1) % NUM_PAGES
+                start_time = time.time()
+            else:
+                continue
             page = pages[idx]
             current_page["page"] = page
             gpio_action(idx)
             socketio.emit("page_change", {"page": page})
+
+        finally:
+            cleanup_gpio()
 
 
 @app.route("/")
