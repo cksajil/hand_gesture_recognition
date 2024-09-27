@@ -1,16 +1,14 @@
 import time
-import logging
-from os.path import join
-from threading import Thread
-from utils import read_html_file
-from flask_socketio import SocketIO, emit
+from threading import Thread, Lock
 from flask import Flask, render_template_string
-from utils import monitor_inputs
-from utils import setup_gpio, gpio_action, cleanup_gpio
+from flask_socketio import SocketIO, emit
+from utils import read_html_file, setup_gpio, gpio_action, cleanup_gpio, monitor_inputs
+
+
+led_map = {0: 7, 1: 11, 2: 13, 3: 15, 4: 12, 5: 16, 6: 18, 7: 22}
 
 NUM_PAGES = 8
-SWITCHING_DELAY = 5
-
+SWITCHING_DELAY = 10
 pages = [
     "cpu.html",
     "network_card.html",
@@ -23,21 +21,24 @@ pages = [
 ]
 
 app = Flask(__name__)
-log = logging.getLogger("werkzeug")
-log.disabled = True
 socketio = SocketIO(app)
 current_page = {"page": pages[0]}
+input_lock = Lock()
+forward_status = 0
+backward_status = 0
 
 
 @app.route("/page_content")
 def page_content():
     page = current_page["page"]
-    page_html = read_html_file(join("static", page))
+    page_html = read_html_file(f"static/{page}")
     return render_template_string(page_html)
 
 
 def process_video_stream():
     setup_gpio()
+    global forward_status, backward_status
+
     idx = 0
     start_time = time.time()
 
@@ -45,33 +46,25 @@ def process_video_stream():
         time.sleep(0.5)
         check_time = time.time()
         time_delta = check_time - start_time
-        try:
-            input_monitor = monitor_inputs()
-            forward_status, backward_status = next(input_monitor)
+
+        with input_lock:
             if backward_status and not forward_status:
                 idx = (idx - 1) % NUM_PAGES
                 start_time = time.time()
-            elif (
-                forward_status and not backward_status
-            ) or time_delta > SWITCHING_DELAY:
-                print("Elapsed {} seconds or pressed forward".format(SWITCHING_DELAY))
+            elif forward_status and not backward_status or time_delta > SWITCHING_DELAY:
                 idx = (idx + 1) % NUM_PAGES
                 start_time = time.time()
-            else:
-                continue
+
             page = pages[idx]
             current_page["page"] = page
             gpio_action(idx)
             socketio.emit("page_change", {"page": page})
 
-        finally:
-            cleanup_gpio()
-
 
 @app.route("/")
 def index():
     page = current_page["page"]
-    page_html = read_html_file(join("static", page))
+    page_html = read_html_file(f"static/{page}")
     return render_template_string(
         """
         {{ page_html|safe }}
@@ -100,15 +93,19 @@ def handle_connect():
     emit("page_change", {"page": page})
 
 
-if __name__ == "__main__":
+def main():
+    # Start the input monitoring thread
+    input_thread = Thread(target=monitor_inputs, args=(input_lock,))
+    input_thread.daemon = True
+    input_thread.start()
 
+    # Start the video stream processing thread
     video_thread = Thread(target=process_video_stream)
     video_thread.daemon = True
     video_thread.start()
 
-    # Print the IP address
-    # hostname = socket.gethostname()
-    # ip_address = socket.gethostbyname(hostname)
-    # print(f"Server running on {ip_address}:5001")
-
     socketio.run(app, host="0.0.0.0", port=5001, debug=True)
+
+
+if __name__ == "__main__":
+    main()
