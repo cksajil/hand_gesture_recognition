@@ -3,9 +3,7 @@ import logging
 from os.path import join
 from threading import Thread
 from flask_socketio import SocketIO, emit
-from flask import Flask, render_template_string
-from utils import communicate_with_arduino
-from utils import read_html_file, find_arduino_port
+from flask import Flask, render_template_string, read_html_file
 
 
 NUM_PAGES = 8
@@ -36,9 +34,8 @@ def page_content():
     return render_template_string(page_html)
 
 
-def process_video_stream(arduino_port):
+def process_video_stream():
     idx = 0
-    n = 0
     start_time = time.time()
 
     while True:
@@ -52,8 +49,6 @@ def process_video_stream(arduino_port):
             idx = idx % NUM_PAGES
             page = pages[idx]
             current_page["page"] = page
-            if arduino_port:
-                communicate_with_arduino(arduino_port, idx)
             socketio.emit("page_change", {"page": page})
 
 
@@ -90,9 +85,8 @@ def handle_connect():
 
 
 if __name__ == "__main__":
-    arduino_port = find_arduino_port()
 
-    video_thread = Thread(target=process_video_stream, args=(arduino_port,))
+    video_thread = Thread(target=process_video_stream)
     video_thread.daemon = True
     video_thread.start()
 
